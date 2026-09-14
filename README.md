@@ -8,40 +8,73 @@ O projeto utiliza um **Workspace do Cargo**, dividindo as responsabilidades em c
 
 ### 📦 Estrutura de Crates
 
-- **`agent-core`**: Define os tipos de dados globais (`HardwareSnapshot`, `LogEntry`, `UpdateInfo`, etc.) e a estrutura do `Snapshot` final. É a "linguagem comum" entre todos os módulos.
-- **`collector-common`**: Contém a trait `PlatformCollector` que define o contrato que todo coletor de OS deve seguir. Também implementa a `CommonCollector` usando a biblioteca `sysinfo` para métricas de hardware básicas que são similares em todos os sistemas (CPU, RAM, Discos).
-- **`collector-windows`**: Implementação específica para Windows. Utiliza PowerShell, CIM/WMI e COM API para extrair dados profundos de segurança, acesso e atualizações do Windows Update. Integra-se ao `smartctl` para saúde de discos.
-- **`collector-linux`**: Implementação específica para Linux. Utiliza `journalctl` para logs do sistema e `apt` para verificar atualizações de pacotes pendentes.
+- **`agent-core`**: Define a "linguagem comum" do projeto. Contém todas as structs de dados (`HardwareSnapshot`, `LogEntry`, `UpdateInfo`, etc.) e a estrutura do `Snapshot` final que será enviada ao servidor.
+- **`collector-common`**: Camada de abstração. Define a trait `PlatformCollector`, que obriga todos os coletores de OS a implementarem as mesmas funções de coleta. Inclui a `CommonCollector` que usa a biblioteca `sysinfo` para métricas básicas (CPU, RAM, Disco) comuns a todos os sistemas.
+- **`collector-windows`**: Especialista em Windows. Executa scripts complexos de PowerShell e consultas CIM/WMI para extrair:
+    - Dados de BIOS, GPU e Bateria.
+    - Status de BitLocker, TPM e Antivírus.
+    - Grupos de Administradores e usuários RDP.
+    - Eventos do Windows Event Log e atualizações do Windows Update.
+- **`collector-linux`**: Especialista em Linux. Integra-se com as ferramentas nativas do ecossistema:
+    - `journalctl` para extração de logs do sistema via JSON.
+    - `apt` para verificação de pacotes pendentes.
+    - Métricas de hardware via `sysinfo`.
 - **`collector-macos`**: (Em desenvolvimento) Implementação para o ecossistema Apple.
-- **`agent-bin`**: O binário executável do agente. Atualmente funciona como um pipeline de teste que instanciar o coletor correto com base no sistema operacional detectado e imprime o snapshot final no console.
+- **`agent-bin`**: O ponto de entrada do aplicativo. Detecta o sistema operacional em tempo de compilação e executa o pipeline de coleta, imprimindo o resultado final no console.
 
 ## 🛠️ Como Funciona (Fluxo de Dados)
 
-1. **Detecção de OS**: O `agent-bin` utiliza flags de compilação (`#[cfg(target_os = "...")]`) para instanciar o coletor adequado (`WindowsCollector` ou `LinuxCollector`).
-2. **Coleta Normalizada**: O coletor chama a `CommonCollector` para dados básicos e executa scripts/comandos específicos do sistema para dados avançados.
-3. **Normalização**: Os dados brutos (JSON do PowerShell, texto do journalctl) são parseados e convertidos nos tipos definidos em `agent-core`.
-4. **Consolidação**: Todas as informações são agrupadas em um `Snapshot` contendo:
-   - **Hardware**: CPU, RAM, Discos (incluindo SMART), GPU, Bateria, BIOS.
-   - **Security**: Status de Firewall, Antivírus, TPM, BitLocker.
-   - **Access**: Usuários locais, Administradores, Status de Domínio/Azure AD, RDP.
-   - **Logs**: Últimas entradas críticas do sistema.
-   - **Updates**: Lista de pacotes/atualizações pendentes.
+1. **Detecção de OS**: O `agent-bin` usa atributos de compilação condicional (`#[cfg(target_os = "...")]`) para decidir qual implementação de `PlatformCollector` instanciar.
+2. **Coleta em Camadas**: 
+   - Primeiro, coleta-se o básico via `CommonCollector` (Cross-platform).
+   - Depois, o coletor específico (Windows/Linux) executa comandos de sistema para enriquecer os dados.
+3. **Normalização**: Dados brutos (como strings do PowerShell ou JSON do journalctl) são convertidos para tipos fortemente tipados do Rust (`agent-core`).
+4. **Snapshot Final**: Todas as informações são agrupadas em um objeto `Snapshot` com metadados da máquina (Hostname, MachineID, Timestamp).
 
-## 💻 Como Rodar
+## 💻 Guia de Instalação e Execução
 
-### Pré-requisitos
-- **Rust**: Instalado via `rustup`.
-- **Dependências Externas**:
-  - **Windows**: PowerShell (nativo).
-  - **Linux**: `systemd` (para `journalctl`) e `apt` (para atualizações).
-  - **Cross-OS**: `smartmontools` (`smartctl`) instalado no PATH para coleta de saúde de discos.
+### Pré-requisitos Gerais
+- **Rust**: Instalado via `rustup` (incluindo `cargo`).
+- **smartmontools**: Para coleta de saúde de disco (SMART), instale o `smartctl`:
+    - **Windows**: `choco install smartmontools` ou via instalador oficial.
+    - **Linux**: `sudo apt install smartmontools`.
 
-### Executando o Agente
-Para rodar o pipeline de teste e ver a coleta em tempo real:
+---
 
-```bash
-cargo run -p agent-bin
-```
+### 🪟 No Windows
+
+**Requisitos Adicionais**:
+- PowerShell 5.1 ou superior (Nativo).
+- Privilégios de **Administrador** (necessário para ler BitLocker, TPM e alguns logs de evento).
+
+**Como Compilar e Rodar**:
+1. Abra o terminal (PowerShell ou CMD) como **Administrador**.
+2. Navegue até a pasta raiz do projeto.
+3. Execute:
+   ```powershell
+   cargo run -p agent-bin
+   ```
+
+---
+
+### 🐧 No Linux
+
+**Requisitos Adicionais**:
+- `systemd` (para acesso ao `journalctl`).
+- `apt` (para verificação de updates em distribuições baseadas em Debian/Ubuntu).
+- Privilégios de **Sudo** para ler logs do sistema.
+
+**Como Compilar e Rodar**:
+1. Abra o terminal.
+2. Navegue até a pasta raiz do projeto.
+3. Execute:
+   ```bash
+   # Para rodar com privilégios de leitura de logs
+   sudo cargo run -p agent-bin
+   ```
+   *Nota: Se o cargo não estiver no path do root, use o caminho completo ou configure o sudoers.*
+
+---
 
 ## 📋 Roadmap de Implementação
 
@@ -52,6 +85,6 @@ cargo run -p agent-bin
 - [ ] **Fase 5**: Integração como Serviço/Daemon do Sistema (Windows Service / systemd unit).
 
 ## ⚙️ Detalhes Técnicos Relevantes
-- **Segurança**: O agente foi projetado para evitar panics usando `Option` e `Result`.
-- **Performance**: No Windows, utilizamos cache com `Mutex` para evitar a execução repetitiva de scripts pesados de PowerShell.
-- **Interoperabilidade**: Toda a comunicação entre shells do sistema e Rust é feita via JSON para evitar erros de parsing de strings.
+- **Segurança**: O agente prioriza a estabilidade, usando `Option` e `Result` para garantir que a falha em coletar um dado específico (ex: GPU não encontrada) não derrube a execução total.
+- **Performance**: Implementação de cache via `Mutex` no Windows para evitar chamadas repetitivas e lentas ao PowerShell.
+- **Interoperabilidade**: Uso de JSON como formato de troca entre o shell do OS e o Rust, garantindo que caracteres especiais e encodings (UTF-8) sejam preservados.
