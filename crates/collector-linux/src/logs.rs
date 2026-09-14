@@ -32,21 +32,30 @@ pub fn collect_logs() -> Vec<LogEntry> {
             }
 
             if let Ok(json) = serde_json::from_str::<Value>(line) {
-                // journalctl timestamps are in microseconds since epoch
-                let timestamp_micros = json["__REALTIME_TIMESTAMP"].as_i64();
-                let timestamp = timestamp_micros
-                    .map(|ms| {
-                        // Convert microseconds to seconds and nanoseconds for DateTime
-                        let seconds = ms / 1_000_000;
-                        let nanos = (ms % 1_000_000) * 1000;
+                // journalctl timestamps are in microseconds since epoch, but come as strings in JSON
+                let timestamp = json["__REALTIME_TIMESTAMP"].as_str()
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .and_then(|micros| {
+                        let seconds = micros / 1_000_000;
+                        let nanos = (micros % 1_000_000) * 1000;
                         DateTime::from_timestamp(seconds, nanos as u32)
-                            .unwrap_or(Utc::now())
                     })
                     .unwrap_or_else(Utc::now);
 
+                let level = json["PRIORITY"].as_str()
+                    .and_then(|p| p.parse::<u8>().ok())
+                    .map(|p| match p {
+                        0..=3 => "Error",
+                        4 => "Warning",
+                        5..=6 => "Info",
+                        _ => "Debug",
+                    })
+                    .unwrap_or("Info")
+                    .to_string();
+
                 entries.push(LogEntry {
                     timestamp,
-                    level: "Info".to_string(), // journalctl has priority levels, but we simplify to Info for now
+                    level,
                     message: json["MESSAGE"].as_str().unwrap_or("No message").to_string(),
                     source: json["SYSLOG_IDENTIFIER"].as_str().unwrap_or("Unknown").to_string(),
                 });
