@@ -5,3 +5,7 @@ edition = "2021"
 
 [dependencies]
 collector-common = { path = "../collector-common" }
+agent-core = { path = "../agent-core" }
+serde_json = "1.0"
+chrono = "0.4"
+tracing = "0.1"

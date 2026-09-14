@@ -10,6 +10,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "collector-common",
+ "collector-linux",
  "collector-windows",
  "tokio",
  "tracing",
@@ -115,7 +116,11 @@ dependencies = [
 name = "collector-linux"
 version = "0.1.0"
 dependencies = [
+ "agent-core",
+ "chrono",
  "collector-common",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]

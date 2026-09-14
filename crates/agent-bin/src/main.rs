@@ -1,16 +1,30 @@
 use agent_core::types::{Snapshot};
 use collector_common::PlatformCollector;
 use collector_windows::WindowsCollector;
+use collector_linux::LinuxCollector;
 use chrono::Utc;
 use tracing_subscriber;
 
 fn main() {
     tracing_subscriber::fmt::init();
-    println!("--- Windows Monitoring Agent Test ---");
 
-    let mut collector = WindowsCollector::new();
+    #[cfg(target_os = "windows")]
+    {
+        println!("--- Windows Monitoring Agent Test ---");
+        let mut collector = WindowsCollector::new();
+        run_test_pipeline(collector);
+    }
 
-    println!("Collecting Hardware & SMART...");
+    #[cfg(target_os = "linux")]
+    {
+        println!("--- Linux Monitoring Agent Test ---");
+        let mut collector = LinuxCollector::new();
+        run_test_pipeline(collector);
+    }
+}
+
+fn run_test_pipeline<C: PlatformCollector>(mut collector: C) {
+    println!("Collecting Hardware...");
     let hardware = match collector.collect_hardware() {
         Ok(h) => h,
         Err(e) => {
@@ -43,9 +57,9 @@ fn main() {
     println!("Updates: {:#?}", updates);
 
     let snapshot = Snapshot {
-        machine_id: "win-test-01".to_string(),
-        hostname: "win-machine".to_string(),
-        os: "windows".to_string(),
+        machine_id: "test-machine-01".to_string(),
+        hostname: "test-host".to_string(),
+        os: "detected".to_string(),
         collected_at: Utc::now(),
         hardware,
         logs,

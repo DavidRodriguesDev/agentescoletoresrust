@@ -20,6 +20,12 @@ pub trait PlatformCollector {
     fn collect_access(&mut self) -> Result<Option<agent_core::types::AccessSnapshot>, CollectorError> {
         Ok(None)
     }
+    fn collect_logs(&self) -> Vec<agent_core::types::LogEntry> {
+        vec![]
+    }
+    fn collect_updates(&self) -> Vec<agent_core::types::UpdateInfo> {
+        vec![]
+    }
 }
 
 pub struct CommonCollector {

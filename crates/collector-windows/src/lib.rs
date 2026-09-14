@@ -66,7 +66,15 @@ impl WindowsCollector {
         Some(format!(r"\\.\PhysicalDrive{}", disk_num))
     }
 
-    pub fn collect_logs(&self) -> Vec<LogEntry> {
+    pub fn collect_logs(&self) -> Vec<agent_core::types::LogEntry> {
+        self.collect_logs_impl()
+    }
+
+    pub fn collect_updates(&self) -> Vec<agent_core::types::UpdateInfo> {
+        self.collect_updates_impl()
+    }
+
+    fn collect_logs_impl(&self) -> Vec<agent_core::types::LogEntry> {
         tracing::info!("Collecting Windows system logs...");
         let script = r#"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; @(Get-WinEvent -LogName System -MaxEvents 5) | Select-Object @{Name='TimeCreated';Expression={(Get-Date $_.TimeCreated).ToString('yyyy-MM-ddTHH:mm:ssZ')}}, Message, ProviderName | ConvertTo-Json"#;
 
@@ -115,7 +123,7 @@ impl WindowsCollector {
         vec![]
     }
 
-    pub fn collect_updates(&self) -> Vec<UpdateInfo> {
+    fn collect_updates_impl(&self) -> Vec<agent_core::types::UpdateInfo> {
         tracing::info!("Collecting Windows updates (this may take a while)...");
         let script = r#"
             [Console]::OutputEncoding = [System.Text.Encoding]::UTF8;
@@ -389,5 +397,13 @@ impl PlatformCollector for WindowsCollector {
         let mut access = None;
         self.collect_extended_data(&mut hardware, &mut security, &mut access);
         Ok(access)
+    }
+
+    fn collect_logs(&self) -> Vec<agent_core::types::LogEntry> {
+        self.collect_logs_impl()
+    }
+
+    fn collect_updates(&self) -> Vec<agent_core::types::UpdateInfo> {
+        self.collect_updates_impl()
     }
 }
