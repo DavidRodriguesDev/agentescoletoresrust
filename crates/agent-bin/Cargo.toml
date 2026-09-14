@@ -1,0 +1,14 @@
+[package]
+name = "agent-bin"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+agent-core = { path = "../agent-core" }
+collector-common = { path = "../collector-common" }
+collector-windows = { path = "../collector-windows" }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+chrono = "0.4"

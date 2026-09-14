@@ -1,0 +1,7 @@
+[package]
+name = "collector-macos"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+collector-common = { path = "../collector-common" }
