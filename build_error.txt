@@ -1,0 +1,44 @@
+   Compiling agent-config v0.1.0 (C:\Users\DavidSouza\OneDrive - Sigga Technologies\Documentos\Projetos\AgenteDeMonitoramenteMultiOS\crates\agent-config)
+warning: unused import: `error`
+ --> crates\agent-config\src\lib.rs:4:27
+  |
+4 | use tracing::{info, warn, error};
+  |                           ^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0308]: mismatched types
+     --> crates\agent-config\src\secret\mod.rs:65:57
+      |
+   65 |         let handle = windows::Win32::Foundation::HLOCAL(data_out.pbData);
+      |                      ---------------------------------- ^^^^^^^^^^^^^^^ expected `*mut c_void`, found `*mut u8`
+      |                      |
+      |                      arguments to this struct are incorrect
+      |
+      = note: expected raw pointer `*mut c_void`
+                 found raw pointer `*mut u8`
+note: tuple struct defined here
+     --> C:\Users\DavidSouza\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-0.52.0\src\Windows\Win32\Foundation\mod.rs:10919:12
+      |
+10919 | pub struct HLOCAL(pub *mut ::core::ffi::c_void);
+      |            ^^^^^^
+
+error[E0308]: mismatched types
+     --> crates\agent-config\src\secret\mod.rs:119:57
+      |
+  119 |         let handle = windows::Win32::Foundation::HLOCAL(data_out.pbData);
+      |                      ---------------------------------- ^^^^^^^^^^^^^^^ expected `*mut c_void`, found `*mut u8`
+      |                      |
+      |                      arguments to this struct are incorrect
+      |
+      = note: expected raw pointer `*mut c_void`
+                 found raw pointer `*mut u8`
+note: tuple struct defined here
+     --> C:\Users\DavidSouza\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\windows-0.52.0\src\Windows\Win32\Foundation\mod.rs:10919:12
+      |
+10919 | pub struct HLOCAL(pub *mut ::core::ffi::c_void);
+      |            ^^^^^^
+
+For more information about this error, try `rustc --explain E0308`.
+warning: `agent-config` (lib) generated 1 warning
+error: could not compile `agent-config` (lib) due to 2 previous errors; 1 warning emitted

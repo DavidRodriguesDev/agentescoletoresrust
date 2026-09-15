@@ -26,6 +26,7 @@ pub fn collect_logs() -> Vec<LogEntry> {
         let mut entries = Vec::new();
 
         // journalctl -o json produces JSON Lines (one JSON object per line)
+        
         for line in stdout_str.lines() {
             if line.trim().is_empty() {
                 continue;

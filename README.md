@@ -30,6 +30,7 @@ O projeto utiliza um **Workspace do Cargo**, dividindo as responsabilidades em c
    - Depois, o coletor específico (Windows/Linux) executa comandos de sistema para enriquecer os dados.
 3. **Normalização**: Dados brutos (como strings do PowerShell ou JSON do journalctl) são convertidos para tipos fortemente tipados do Rust (`agent-core`).
 4. **Snapshot Final**: Todas as informações são agrupadas em um objeto `Snapshot` com metadados da máquina (Hostname, MachineID, Timestamp).
+5. **Relatório de Execução**: O agente gera um `RelatorioFinal` que combina o `Snapshot` com um log detalhado da execução (tempo gasto por etapa, status de sucesso/erro e avisos de permissão), salvo automaticamente em JSON em `C:\ProgramData\agente-monitoramento\reports` (no Windows).
 
 ## 💻 Guia de Instalação e Execução
 

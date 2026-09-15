@@ -2,6 +2,14 @@ use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstalledApplication {
+    pub name: String,
+    pub version: Option<String>,
+    pub publisher: Option<String>,
+    pub install_date: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Snapshot {
     pub machine_id: String,
     pub hostname: String,
@@ -35,6 +43,7 @@ pub struct HardwareSnapshot {
     pub battery: Option<BatteryInfo>,
     pub service_tag: Option<String>,
     pub serial_number: Option<String>,
+    pub collection_warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +96,7 @@ pub struct SecuritySnapshot {
     pub bitlocker_status: Option<Vec<BitlockerVolumeStatus>>,
     pub antivirus_status: Option<String>,
     pub firewall_enabled: Option<bool>,
+    pub collection_warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,6 +107,7 @@ pub struct AccessSnapshot {
     pub domain_joined: Option<bool>,
     pub azure_ad_joined: Option<bool>,
     pub domain_name: Option<String>,
+    pub collection_warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

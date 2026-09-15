@@ -1,0 +1,17 @@
+[package]
+name = "agent-config"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+chrono = "0.4"
+tracing = "0.1"
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+# For Windows DPAPI
+windows = { version = "0.52", features = ["Win32_Security_Cryptography", "Win32_Foundation"] }
+# For secure password input
+rpassword = "7.3"

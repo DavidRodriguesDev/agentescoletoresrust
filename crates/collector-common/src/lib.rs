@@ -1,4 +1,4 @@
-use agent_core::types::{HardwareSnapshot, DiskInfo, SmartStatus};
+use agent_core::types::{HardwareSnapshot, DiskInfo, SmartStatus, InstalledApplication};
 use thiserror::Error;
 use sysinfo::{System, Disks};
 use std::process::Command;
@@ -25,6 +25,10 @@ pub trait PlatformCollector {
     }
     fn collect_updates(&self) -> Vec<agent_core::types::UpdateInfo> {
         vec![]
+    }
+
+    fn collect_installed_applications(&mut self) -> Result<Vec<InstalledApplication>, CollectorError> {
+        Ok(vec![])
     }
 }
 
@@ -106,6 +110,7 @@ impl CommonCollector {
             battery: None,
             service_tag: None,
             serial_number: None,
+            collection_warnings: vec![],
         })
     }
 }

@@ -1,4 +1,5 @@
 use agent_core::types::{HardwareSnapshot, LogEntry, UpdateInfo, SmartStatus};
+mod installed_apps;
 use collector_common::{PlatformCollector, CommonCollector, CollectorError};
 use std::process::Command;
 use serde_json::Value;
@@ -200,6 +201,7 @@ impl WindowsCollector {
             }
 
             $memTypeMap = @{ 0='Unknown'; 20='DDR'; 21='DDR2'; 24='DDR3'; 26='DDR4'; 30='DDR5' };
+            $hwWarns = @(); $secWarns = @(); $accWarns = @();
             $data = @{
                 Hardware = @{
                     cpu_model = (Get-CimInstance Win32_Processor).Name;
@@ -208,23 +210,28 @@ impl WindowsCollector {
                     cpu_socket = (Get-CimInstance Win32_Processor).SocketDesignation;
                     service_tag = (Get-CimInstance Win32_Bios).SerialNumber;
                     serial_number = (Get-CimInstance Win32_Bios).SerialNumber;
-                    ram_slots = @(Get-CimInstance Win32_PhysicalMemory | Select-Object DeviceLocator, Capacity, Speed, PartNumber, @{Name="type";Expression={$type = $_.SMBIOSMemoryType; if (!$type) { $type = $_.MemoryType }; $memTypeMap[$type]}});
+                    ram_slots = @(Get-CimInstance Win32_PhysicalMemory | Select-Object DeviceLocator, Capacity, Speed, PartNumber, @{Name="type";Expression={$t = [int]$_.SMBIOSMemoryType; if ($t -eq 0) { $t = [int]$_.MemoryType }; if ($memTypeMap.ContainsKey($t)) { $memTypeMap[$t] } else { 'Unknown' }}});
                     gpus = @(Get-CimInstance Win32_VideoController | Select-Object Name, AdapterRAM);
-                    battery = Get-CimInstance Win32_Battery | Select-Object EstimatedChargeRemaining, Status;
+                    battery = try { Get-CimInstance Win32_Battery | Select-Object EstimatedChargeRemaining, Status } catch { $hwWarns += "Battery collection failed"; $null };
                 };
                 Security = @{
-                    tpm_enabled = (Get-Tpm).TpmPresent;
-                    bitlocker_status = @(Get-BitLockerVolume | Select-Object MountPoint, ProtectionStatus);
-                    antivirus_status = @(Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct).displayName;
-                    firewall_enabled = (Get-NetFirewallProfile -Profile Domain,Public,Private | Where-Object {$_.Enabled -eq 'True'}).Name.Count -gt 0;
+                    tpm_enabled = try { (Get-Tpm).TpmPresent } catch { $secWarns += "TPM collection failed"; $null };
+                    bitlocker_status = try { @(Get-BitLockerVolume | Select-Object MountPoint, ProtectionStatus) } catch { $secWarns += "BitLocker collection failed"; @() };
+                    antivirus_status = try { @(Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct).displayName } catch { $secWarns += "Antivirus collection failed"; @() };
+                    firewall_enabled = try { (Get-NetFirewallProfile -Profile Domain,Public,Private | Where-Object {$_.Enabled -eq 'True'}).Name.Count -gt 0 } catch { $secWarns += "Firewall collection failed"; $null };
                 };
                 Access = @{
-                    local_users = @(Get-LocalUser).Name;
+                    local_users = try { @(Get-LocalUser).Name } catch { $accWarns += "Local users collection failed"; @() };
                     local_admins = Get-MembrosGrupoSeguro -NomesPossiveis @("Administrators", "Administradores");
                     rdp_users = Get-MembrosGrupoSeguro -NomesPossiveis @("Remote Desktop Users", "Usuários da Área de Trabalho Remota", "Usuarios da Area de Trabalho Remota");
-                    domain_joined = (Get-CimInstance Win32_ComputerSystem).PartOfDomain;
-                    azure_ad_joined = (Get-CimInstance -Namespace root\Microsoft\Windows\AzureAD -ClassName MSFT_AzureADJoinedDevice).Joined;
-                    domain_name = (Get-CimInstance Win32_ComputerSystem).Domain;
+                    domain_joined = try { (Get-CimInstance Win32_ComputerSystem).PartOfDomain } catch { $accWarns += "Domain joined collection failed"; $null };
+                    azure_ad_joined = try { (Get-CimInstance -Namespace root\Microsoft\Windows\AzureAD -ClassName MSFT_AzureADJoinedDevice).Joined } catch { $accWarns += "Azure AD collection failed"; $null };
+                    domain_name = try { (Get-CimInstance Win32_ComputerSystem).Domain } catch { $accWarns += "Domain name collection failed"; $null };
+                };
+                Warnings = @{
+                    Hardware = $hwWarns;
+                    Security = $secWarns;
+                    Access = $accWarns;
                 };
             }
             $data | ConvertTo-Json -Depth 5
@@ -260,7 +267,7 @@ impl WindowsCollector {
         None
     }
 
-    fn collect_extended_data(&self, hardware: &mut HardwareSnapshot, security: &mut Option<agent_core::types::SecuritySnapshot>, access: &mut Option<agent_core::types::AccessSnapshot>) {
+    fn collect_extended_data(&self, hardware: &mut HardwareSnapshot, security: &mut Option<agent_core::types::SecuritySnapshot>, access: &mut Option<agent_core::types::AccessSnapshot>, hw_warns: &mut Vec<String>, sec_warns: &mut Vec<String>, acc_warns: &mut Vec<String>) {
         if let Some(json) = self.fetch_extended_data() {
             if let Some(hw) = json.get("Hardware") {
                 hardware.cpu_model = hw["cpu_model"].as_str().map(|s| s.to_string());
@@ -296,6 +303,22 @@ impl WindowsCollector {
                         health_pct: batt["EstimatedChargeRemaining"].as_u64().unwrap_or(0) as u8,
                         status: batt["Status"].as_str().unwrap_or("Unknown").to_string(),
                     });
+                } else {
+                    let msg = "Battery information unavailable".to_string();
+                    tracing::warn!("{}", msg);
+                    hw_warns.push(msg);
+                }
+            }
+
+            if let Some(warns) = json.get("Warnings") {
+                if let Some(hw_w) = warns.get("Hardware").and_then(|w| w.as_array()) {
+                    hw_warns.extend(hw_w.iter().filter_map(|v| v.as_str().map(|s| s.to_string())));
+                }
+                if let Some(sec_w) = warns.get("Security").and_then(|w| w.as_array()) {
+                    sec_warns.extend(sec_w.iter().filter_map(|v| v.as_str().map(|s| s.to_string())));
+                }
+                if let Some(acc_w) = warns.get("Access").and_then(|w| w.as_array()) {
+                    acc_warns.extend(acc_w.iter().filter_map(|v| v.as_str().map(|s| s.to_string())));
                 }
             }
 
@@ -312,6 +335,7 @@ impl WindowsCollector {
                     }),
                     antivirus_status: Some(sec["antivirus_status"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect::<Vec<String>>().join(", ")).unwrap_or_else(|| sec["antivirus_status"].as_str().map(|s| s.to_string()).unwrap_or_default())),
                     firewall_enabled: sec["firewall_enabled"].as_bool(),
+                    collection_warnings: sec_warns.clone(),
                 });
             }
 
@@ -323,12 +347,19 @@ impl WindowsCollector {
                     domain_joined: acc["domain_joined"].as_bool(),
                     azure_ad_joined: acc["azure_ad_joined"].as_bool(),
                     domain_name: acc["domain_name"].as_str().map(|s| s.to_string()),
+                    collection_warnings: acc_warns.clone(),
                 });
             }
+        } else {
+            let msg = "Failed to collect extended data from PowerShell".to_string();
+            tracing::error!("{}", msg);
+            hw_warns.push(msg.clone());
+            sec_warns.push(msg.clone());
+            acc_warns.push(msg);
         }
     }
 
-    fn collect_smart_with_mapping(&mut self, hardware: &mut HardwareSnapshot) {
+    fn collect_smart_with_mapping(&mut self, hardware: &mut HardwareSnapshot, hw_warns: &mut Vec<String>) {
         for disk in &mut hardware.disk_usage {
             if let Some(physical_path) = Self::map_drive_to_physical_disk(&disk.name) {
                 let output = Command::new("smartctl")
@@ -359,7 +390,15 @@ impl WindowsCollector {
                             temperature,
                         });
                     }
+                } else {
+                    let msg = format!("Failed to execute smartctl for disk {}", disk.name);
+                    tracing::warn!("{}", msg);
+                    hw_warns.push(msg);
                 }
+            } else {
+                let msg = format!("Could not map drive {} to physical disk", disk.name);
+                tracing::warn!("{}", msg);
+                hw_warns.push(msg);
             }
         }
     }
@@ -370,8 +409,14 @@ impl PlatformCollector for WindowsCollector {
         let mut hardware = self.common.get_hardware_snapshot()?;
         let mut dummy_sec = None;
         let mut dummy_acc = None;
-        self.collect_extended_data(&mut hardware, &mut dummy_sec, &mut dummy_acc);
-        self.collect_smart_with_mapping(&mut hardware);
+        let mut hw_warns = Vec::new();
+        let mut sec_warns = Vec::new();
+        let mut acc_warns = Vec::new();
+
+        self.collect_extended_data(&mut hardware, &mut dummy_sec, &mut dummy_acc, &mut hw_warns, &mut sec_warns, &mut acc_warns);
+        self.collect_smart_with_mapping(&mut hardware, &mut hw_warns);
+
+        hardware.collection_warnings = hw_warns;
         Ok(hardware)
     }
 
@@ -380,10 +425,15 @@ impl PlatformCollector for WindowsCollector {
             cpu_usage: 0.0, ram_total: 0, ram_used: 0, disk_usage: vec![], uptime: 0,
             cpu_model: None, cpu_max_ghz: None, cpu_current_ghz: None, cpu_socket: None,
             ram_slots: vec![], gpus: vec![], battery: None, service_tag: None, serial_number: None,
+            collection_warnings: Vec::new(),
         };
         let mut access = None;
         let mut security = None;
-        self.collect_extended_data(&mut hardware, &mut security, &mut access);
+        let mut hw_warns = Vec::new();
+        let mut sec_warns = Vec::new();
+        let mut acc_warns = Vec::new();
+
+        self.collect_extended_data(&mut hardware, &mut security, &mut access, &mut hw_warns, &mut sec_warns, &mut acc_warns);
         Ok(security)
     }
 
@@ -392,10 +442,15 @@ impl PlatformCollector for WindowsCollector {
             cpu_usage: 0.0, ram_total: 0, ram_used: 0, disk_usage: vec![], uptime: 0,
             cpu_model: None, cpu_max_ghz: None, cpu_current_ghz: None, cpu_socket: None,
             ram_slots: vec![], gpus: vec![], battery: None, service_tag: None, serial_number: None,
+            collection_warnings: Vec::new(),
         };
         let mut security = None;
         let mut access = None;
-        self.collect_extended_data(&mut hardware, &mut security, &mut access);
+        let mut hw_warns = Vec::new();
+        let mut sec_warns = Vec::new();
+        let mut acc_warns = Vec::new();
+
+        self.collect_extended_data(&mut hardware, &mut security, &mut access, &mut hw_warns, &mut sec_warns, &mut acc_warns);
         Ok(access)
     }
 
@@ -405,5 +460,9 @@ impl PlatformCollector for WindowsCollector {
 
     fn collect_updates(&self) -> Vec<agent_core::types::UpdateInfo> {
         self.collect_updates_impl()
+    }
+
+    fn collect_installed_applications(&mut self) -> Result<Vec<agent_core::types::InstalledApplication>, CollectorError> {
+        installed_apps::collect_installed_apps()
     }
 }

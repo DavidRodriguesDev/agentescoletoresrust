@@ -1,0 +1,2528 @@
+warning: unused import: `error`
+ --> crates\agent-config\src\lib.rs:4:27
+  |
+4 | use tracing::{info, warn, error};
+  |                           ^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused `Result` that must be used
+  --> crates\agent-config\src\secret\mod.rs:66:9
+   |
+66 |         LocalFree(handle);
+   |         ^^^^^^^^^^^^^^^^^
+   |
+   = note: this `Result` may be an `Err` variant, which should be handled
+   = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+   |
+66 |         let _ = LocalFree(handle);
+   |         +++++++
+
+warning: unused `Result` that must be used
+   --> crates\agent-config\src\secret\mod.rs:120:9
+    |
+120 |         LocalFree(handle);
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+help: use `let _ = ...` to ignore the resulting value
+    |
+120 |         let _ = LocalFree(handle);
+    |         +++++++
+
+warning: `agent-config` (lib) generated 3 warnings (run `cargo fix --lib -p agent-config` to apply 1 suggestion)
+warning: unused import: `collector_linux::LinuxCollector`
+ --> crates\agent-bin\src\main.rs:4:5
+  |
+4 | use collector_linux::LinuxCollector;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `agent-bin` (bin "agent-bin") generated 1 warning (run `cargo fix --bin "agent-bin" -p agent-bin` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.47s
+     Running `target\debug\agent-bin.exe`
+[2m2026-09-15T20:59:17.032063Z[0m [32m INFO[0m [2magent_bin[0m[2m:[0m Server Configuration Resolved:
+[2m2026-09-15T20:59:17.032228Z[0m [32m INFO[0m [2magent_bin[0m[2m:[0m   Config URL: https://teste.com/v1/config
+[2m2026-09-15T20:59:17.032270Z[0m [32m INFO[0m [2magent_bin[0m[2m:[0m   Ingest URL: https://teste.com/v1/ingest
+[2m2026-09-15T20:59:17.032326Z[0m [32m INFO[0m [2magent_bin[0m[2m:[0m   OAuth URL:  https://teste.com/v1/oauth/token
+[2m2026-09-15T20:59:17.032397Z[0m [32m INFO[0m [2magent_bin[0m[2m:[0m Machine ID: b9ca689e-a2ca-4a5c-b75b-99afdef31006
+[2m2026-09-15T20:59:17.039811Z[0m [32m INFO[0m [2magent_bin[0m[2m:[0m Client secret loaded successfully.
+--- Windows Monitoring Agent Test ---
+[2m2026-09-15T20:59:18.422882Z[0m [33m WARN[0m [2mcollector_windows[0m[2m:[0m smartctl not found on this system. SMART data will be unavailable.
+Collecting Hardware...
+[2m2026-09-15T20:59:18.436792Z[0m [32m INFO[0m [2mcollector_windows[0m[2m:[0m Collecting extended system data (BIOS, CPU, RAM, GPU, Security, Access)...
+Hardware: HardwareSnapshot {
+    cpu_usage: 88.7442,
+    ram_total: 17048293376,
+    ram_used: 10455990272,
+    disk_usage: [
+        DiskInfo {
+            name: "Windows",
+            total_space: 479035650048,
+            available_space: 205739524096,
+            disk_type: None,
+            smart_status: None,
+        },
+    ],
+    uptime: 89450,
+    cpu_model: Some(
+        "Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz",
+    ),
+    cpu_max_ghz: Some(
+        1.992,
+    ),
+    cpu_current_ghz: Some(
+        1.792,
+    ),
+    cpu_socket: Some(
+        "U3E1",
+    ),
+    ram_slots: [
+        RamSlot {
+            slot: "DIMM A",
+            capacity: 8589934592,
+            speed: 3200,
+            ram_type: "Unknown",
+            part_number: "SMS4WEC8C1K0446FCG  ",
+        },
+        RamSlot {
+            slot: "DIMM B",
+            capacity: 8589934592,
+            speed: 3200,
+            ram_type: "Unknown",
+            part_number: "SMS4WEC8C1K0446FCG  ",
+        },
+    ],
+    gpus: [
+        GpuInfo {
+            model: "Intel(R) UHD Graphics 620",
+            vram: 1073741824,
+        },
+    ],
+    battery: Some(
+        BatteryInfo {
+            health_pct: 100,
+            status: "OK",
+        },
+    ),
+    service_tag: Some(
+        "DM9S9X2",
+    ),
+    serial_number: Some(
+        "DM9S9X2",
+    ),
+}
+
+Collecting Security...
+Security: Some(
+    SecuritySnapshot {
+        tpm_enabled: None,
+        bitlocker_status: Some(
+            [],
+        ),
+        antivirus_status: Some(
+            "Windows Defender, CrowdStrike Falcon Sensor",
+        ),
+        firewall_enabled: Some(
+            true,
+        ),
+    },
+)
+
+Collecting Access...
+Access: Some(
+    AccessSnapshot {
+        local_users: [
+            "Administrador",
+            "Convidado",
+            "DefaultAccount",
+            "ti.sigga",
+            "WDAGUtilityAccount",
+        ],
+        local_admins: [
+            "AzureAD\\BeatrizCosta",
+            "AzureAD\\DavidSouza",
+            "AzureAD\\ErickNunes",
+            "AzureAD\\RogérioPascini",
+            "AzureAD\\SolonMendes",
+            "S-1-12-1-1644830528-1321777648-854851253-3595869939",
+            "S-1-12-1-2931379272-1271453032-2730232736-2565501808",
+            "SIGBH-FF6AE4\\Administrador",
+            "SIGBH-FF6AE4\\ti.sigga",
+        ],
+        rdp_enabled: None,
+        domain_joined: Some(
+            false,
+        ),
+        azure_ad_joined: None,
+        domain_name: Some(
+            "WORKGROUP",
+        ),
+    },
+)
+
+Collecting Logs...
+[2m2026-09-15T20:59:36.963209Z[0m [32m INFO[0m [2mcollector_windows[0m[2m:[0m Collecting Windows system logs...
+Logs: [
+    LogEntry {
+        timestamp: 2026-09-15T17:51:53Z,
+        level: "Info",
+        message: "O tipo de inicialização do serviço Serviço de Transferência Inteligente em Segundo Plano foi alterado de iniciar automaticamente para iniciar demanda.",
+        source: "Service Control Manager",
+    },
+    LogEntry {
+        timestamp: 2026-09-15T17:51:09Z,
+        level: "Info",
+        message: "Popup de aplicativo:  : Execute complete\n\nBundle Info:\n\tBundleName: CrowdStrike Windows Sensor\n\tBundleVersion: 7.40.21309.0\n\tBundleId: {13a3c31d-8ec9-443a-bd14-40d4714e1497}\n",
+        source: "CrowdStrikeSetup",
+    },
+    LogEntry {
+        timestamp: 2026-09-15T17:51:09Z,
+        level: "Info",
+        message: "Popup de aplicativo:  : Execute package complete:\n\tPackage ID: {bd26ab05-53dd-43b9-85be-ee2709fe3822}\n\tVersion: 7.40.21306.0\n\tDisplayName: (null)\n\tResult: 0x00000000\n\nBundle Info:\n\tBundleName: CrowdStrike Windows Sensor\n\tBundleVersion: 7.40.21309.0\n\tBundleId: {13a3c31d-8ec9-443a-bd14-40d4714e1497}\n",
+        source: "CrowdStrikeSetup",
+    },
+    LogEntry {
+        timestamp: 2026-09-15T17:51:07Z,
+        level: "Info",
+        message: "Popup de aplicativo:  : Execute complete\n\nBundle Info:\n\tBundleName: CrowdStrike Windows Sensor\n\tBundleVersion: 7.40.21306.0\n\tBundleId: {bd26ab05-53dd-43b9-85be-ee2709fe3822}\n",
+        source: "CrowdStrikeSetup",
+    },
+    LogEntry {
+        timestamp: 2026-09-15T17:51:07Z,
+        level: "Info",
+        message: "Popup de aplicativo:  : Execute begin\n\nBundle Info:\n\tBundleName: CrowdStrike Windows Sensor\n\tBundleVersion: 7.40.21306.0\n\tBundleId: {bd26ab05-53dd-43b9-85be-ee2709fe3822}\n",
+        source: "CrowdStrikeSetup",
+    },
+]
+
+Collecting Updates...
+[2m2026-09-15T20:59:37.726537Z[0m [32m INFO[0m [2mcollector_windows[0m[2m:[0m Collecting Windows updates (this may take a while)...
+Updates: [
+    UpdateInfo {
+        package_name: "Qualcomm Communications Inc. - Net - 12.0.0.1238",
+        version_available: "Latest",
+        severity: "Normal",
+    },
+    UpdateInfo {
+        package_name: "2026-09 Atualização de Segurança (KB5129195) (26200.9457)",
+        version_available: "Latest",
+        severity: "Normal",
+    },
+]
+
+Collecting Installed Applications...
+Apps: [
+    InstalledApplication {
+        name: "7-Zip 26.03 (x64)",
+        version: Some(
+            "26.03",
+        ),
+        publisher: Some(
+            "Igor Pavlov",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Adobe Acrobat (64-bit)",
+        version: Some(
+            "26.001.21789",
+        ),
+        publisher: Some(
+            "Adobe",
+        ),
+        install_date: Some(
+            "20260827",
+        ),
+    },
+    InstalledApplication {
+        name: "Adobe Refresh Manager",
+        version: Some(
+            "1.8.0",
+        ),
+        publisher: Some(
+            "Adobe Systems Incorporated",
+        ),
+        install_date: Some(
+            "20260907",
+        ),
+    },
+    InstalledApplication {
+        name: "AnyBurn",
+        version: Some(
+            "6.9",
+        ),
+        publisher: Some(
+            "Power Software Ltd",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Application Compatibility Toolkit",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Application Verifier x64 External Package (DesktopEditions)",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Application Verifier x64 External Package (OnecoreUAP)",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Appman Auto Sequencer",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Appman Sequencer on amd64",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Assessments on Client (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Assessments on Client (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "BCD and Boot",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Complementos do Ambiente de Pré-instalação do Windows do Kit de Avaliação e Implantação do Windows",
+        version: Some(
+            "10.1.26100.2454",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "CrowdStrike Device Control",
+        version: Some(
+            "7.40.21378.0",
+        ),
+        publisher: Some(
+            "CrowdStrike, Inc.",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "CrowdStrike Firmware Analysis",
+        version: Some(
+            "7.14.18456.0",
+        ),
+        publisher: Some(
+            "CrowdStrike, Inc.",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "CrowdStrike Sensor Platform",
+        version: Some(
+            "7.40.21309.0",
+        ),
+        publisher: Some(
+            "CrowdStrike, Inc.",
+        ),
+        install_date: Some(
+            "20260915",
+        ),
+    },
+    InstalledApplication {
+        name: "CrowdStrike Windows Sensor",
+        version: Some(
+            "7.40.21309.0",
+        ),
+        publisher: Some(
+            "CrowdStrike, Inc.",
+        ),
+        install_date: Some(
+            "20260915",
+        ),
+    },
+    InstalledApplication {
+        name: "Dell SupportAssist",
+        version: Some(
+            "5.2.1.2141",
+        ),
+        publisher: Some(
+            "Dell Inc.",
+        ),
+        install_date: Some(
+            "20260903",
+        ),
+    },
+    InstalledApplication {
+        name: "Dell SupportAssist OS Recovery Plugin for Dell Update",
+        version: Some(
+            "5.5.16.2",
+        ),
+        publisher: Some(
+            "Dell Inc.",
+        ),
+        install_date: Some(
+            "20260831",
+        ),
+    },
+    InstalledApplication {
+        name: "DiagnosticsHub_CollectionService",
+        version: Some(
+            "17.14.36412",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Docker Desktop",
+        version: Some(
+            "4.91.0",
+        ),
+        publisher: Some(
+            "Docker Inc.",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Git",
+        version: Some(
+            "2.55.0.5",
+        ),
+        publisher: Some(
+            "The Git Development Community",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Google Chrome",
+        version: Some(
+            "153.0.8010.47",
+        ),
+        publisher: Some(
+            "Google LLC",
+        ),
+        install_date: Some(
+            "20260915",
+        ),
+    },
+    InstalledApplication {
+        name: "Imaging And Configuration Designer (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Imaging And Configuration Designer (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Imaging Designer (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Imaging Designer (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Imaging Tools Support (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Imaging Tools Support (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "ImgBurn",
+        version: Some(
+            "2.5.8.0",
+        ),
+        publisher: Some(
+            "LIGHTNING UK!",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Intel(R) Serial IO",
+        version: Some(
+            "30.100.1943.2",
+        ),
+        publisher: Some(
+            "Intel Corporation",
+        ),
+        install_date: Some(
+            "20260827",
+        ),
+    },
+    InstalledApplication {
+        name: "Kit de Avaliação e Implantação do Windows",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Kits Configuration Installer",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "MSI Development Tools",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "MXAx64 (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "MXAx64 (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft .NET Host - 10.0.11 (x64)",
+        version: Some(
+            "80.44.56884",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260827",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft .NET Host FX Resolver - 10.0.11 (x64)",
+        version: Some(
+            "80.44.56884",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260827",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft .NET Runtime - 10.0.11 (x64)",
+        version: Some(
+            "80.44.56884",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260827",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Edge",
+        version: Some(
+            "153.0.4234.32",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Edge WebView2 Runtime",
+        version: Some(
+            "153.0.4234.32",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260915",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Intune Management Extension",
+        version: Some(
+            "1.105.103.0",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260827",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft OneDrive",
+        version: Some(
+            "26.158.0816.0003",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Microsoft Teams Meeting Add-in for Microsoft Office",
+        version: Some(
+            "1.26.20101",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260910",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Visual C++ 2015-2022 Redistributable (x86) - 14.44.35211",
+        version: Some(
+            "14.44.35211.0",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Microsoft Visual C++ 2022 X64 Additional Runtime - 14.51.36247",
+        version: Some(
+            "14.51.36247",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260903",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Visual C++ 2022 X64 Debug Runtime - 14.44.35211",
+        version: Some(
+            "14.44.35211",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Visual C++ 2022 X64 Minimum Runtime - 14.51.36247",
+        version: Some(
+            "14.51.36247",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260903",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Visual C++ 2022 X86 Additional Runtime - 14.44.35211",
+        version: Some(
+            "14.44.35211",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Visual C++ 2022 X86 Debug Runtime - 14.44.35211",
+        version: Some(
+            "14.44.35211",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Visual C++ 2022 X86 Minimum Runtime - 14.44.35211",
+        version: Some(
+            "14.44.35211",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Visual C++ v14 Redistributable (x64) - 14.51.36247",
+        version: Some(
+            "14.51.36247.0",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Microsoft Visual Studio Installer",
+        version: Some(
+            "4.10.30.62513",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Visual Studio Setup Configuration",
+        version: Some(
+            "3.12.2140.44225",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Visual Studio Setup WMI Provider",
+        version: Some(
+            "3.12.2140.44225",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Windows Application Compatibility Fix Database",
+        version: None,
+        publisher: None,
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Microsoft Windows Desktop Runtime - 10.0.11 (x64)",
+        version: Some(
+            "80.44.56884",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260827",
+        ),
+    },
+    InstalledApplication {
+        name: "Microsoft Windows Desktop Runtime 10.0.11 (x64)",
+        version: Some(
+            "10.0.11.50000",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260827",
+        ),
+    },
+    InstalledApplication {
+        name: "Modern Standby Cycle Utility (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Modern Standby Cycle Utility (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Mozilla Firefox (x64 pt-BR)",
+        version: Some(
+            "155.0.1",
+        ),
+        publisher: Some(
+            "Mozilla",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Mozilla Maintenance Service",
+        version: Some(
+            "155.0",
+        ),
+        publisher: Some(
+            "Mozilla",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Node.js",
+        version: Some(
+            "24.20.0",
+        ),
+        publisher: Some(
+            "Node.js Foundation",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "OA3Tool",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "OACheck",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "OATool",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "OSFMount",
+        version: Some(
+            "3.3.1000.0",
+        ),
+        publisher: Some(
+            "Passmark Software",
+        ),
+        install_date: Some(
+            "20260909",
+        ),
+    },
+    InstalledApplication {
+        name: "Ollama version 0.34.0",
+        version: Some(
+            "0.34.0",
+        ),
+        publisher: Some(
+            "Ollama",
+        ),
+        install_date: Some(
+            "20260910",
+        ),
+    },
+    InstalledApplication {
+        name: "Oracle VirtualBox 7.2.16",
+        version: Some(
+            "7.2.16",
+        ),
+        publisher: Some(
+            "Oracle and/or its affiliates",
+        ),
+        install_date: Some(
+            "20260903",
+        ),
+    },
+    InstalledApplication {
+        name: "Oscdimg (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Oscdimg (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Qualcomm 11ac Wireless LAN&Bluetooth Installer",
+        version: Some(
+            "11.0.0.10531",
+        ),
+        publisher: Some(
+            "Qualcomm",
+        ),
+        install_date: Some(
+            "20260827",
+        ),
+    },
+    InstalledApplication {
+        name: "Rustup: the Rust toolchain installer",
+        version: Some(
+            "1.29.1",
+        ),
+        publisher: None,
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "SDK ARM64 Additions",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "SDK ARM64 Redistributables",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Spotify",
+        version: Some(
+            "1.3.0.277.g5441bb3e",
+        ),
+        publisher: Some(
+            "Spotify AB",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Supply Chain Trust Tools ADK",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "TeamViewer",
+        version: Some(
+            "15.81.5",
+        ),
+        publisher: Some(
+            "TeamViewer",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Toolkit Documentation",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "UEV Tools on amd64",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Universal CRT Extension SDK",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Universal CRT Headers Libraries and Sources",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Universal CRT Redistributable",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Universal CRT Tools x64",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Universal CRT Tools x86",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Universal General MIDI DLS Extension SDK",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "User State Migration Tool (ClientCore)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "User State Migration Tool (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "User State Migration Tool (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "VSCodium (User)",
+        version: Some(
+            "1.135.06055",
+        ),
+        publisher: Some(
+            "VSCodium",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Visual Studio Community 2022",
+        version: Some(
+            "17.14.40",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Volume Activation Management Tool",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "WPT Redistributables",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "WPTx64 (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "WPTx64 (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Wazuh Agent",
+        version: Some(
+            "4.8.1",
+        ),
+        publisher: Some(
+            "Wazuh, Inc.",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "WinAppDeploy",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "WinRT Intellisense Desktop - Other Languages",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "WinRT Intellisense Desktop - en-us",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "WinRT Intellisense IoT - Other Languages",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "WinRT Intellisense IoT - en-us",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "WinRT Intellisense Mobile - en-us",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "WinRT Intellisense PPI - Other Languages",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "WinRT Intellisense PPI - en-us",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "WinRT Intellisense UAP - Other Languages",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "WinRT Intellisense UAP - en-us",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows App Certification Kit Native Components",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows App Certification Kit SupportedApiList x86",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows App Certification Kit x64",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows App Certification Kit x64 (OnecoreUAP)",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Assessment Toolkit (AMD64 Architecture Specific)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Assessment Toolkit (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Assessment Toolkit (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Deployment Customizations",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Deployment Image Servicing and Management - Headers and Libraries",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Deployment Image Servicing and Management Tools (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Deployment Image Servicing and Management Tools (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Deployment Tools",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Deployment Tools Environment",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Desktop Extension SDK",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Desktop Extension SDK Contracts",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows IoT Extension SDK",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows IoT Extension SDK Contracts",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Mobile Extension SDK",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Mobile Extension SDK Contracts",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows PE Boot Files (DesktopEditions)",
+        version: Some(
+            "10.1.26100.2454",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows PE Boot Files (OnecoreUAP)",
+        version: Some(
+            "10.1.26100.2454",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows PE Optional Packages (DesktopEditions)",
+        version: Some(
+            "10.1.26100.2454",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows PE Scripts",
+        version: Some(
+            "10.1.26100.2454",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows PE wims (DesktopEditions)",
+        version: Some(
+            "10.1.26100.2454",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260908",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK ARM64 Desktop Tools",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK AddOn",
+        version: Some(
+            "10.1.0.0",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Desktop Headers arm64",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Desktop Headers x64",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Desktop Headers x86",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Desktop Libs arm64",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Desktop Libs x64",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Desktop Libs x86",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Desktop Tools arm64",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Desktop Tools x64",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Desktop Tools x86",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK DirectX x64 Remote",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK DirectX x86 Remote",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK EULA",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporations",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Facade Windows WinMD Versioned",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Modern Non-Versioned Developer Tools",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Modern Versioned Developer Tools",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK OnecoreUap Headers arm64",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK OnecoreUap Headers x64",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK OnecoreUap Headers x86",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Redistributables",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK Signing Tools",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK for Windows Store Apps",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK for Windows Store Apps Contracts",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK for Windows Store Apps DirectX x86 Remote",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK for Windows Store Apps Headers",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK for Windows Store Apps Headers OnecoreUap",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK for Windows Store Apps Libs",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK for Windows Store Apps Metadata",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK for Windows Store Apps Tools",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows SDK for Windows Store Managed Apps Libs",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Setup Files (ClientCore)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Setup Files (DesktopEditions)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Setup Files (OnecoreUAP)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Setup Files (ShellCommon)",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Software Development Kit - Windows 10.0.26100.7705",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: None,
+    },
+    InstalledApplication {
+        name: "Windows Subsystem for Linux",
+        version: Some(
+            "2.7.14.0",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows System Image Manager",
+        version: Some(
+            "10.1.28000.1",
+        ),
+        publisher: Some(
+            "Microsoft",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Team Extension SDK",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "Windows Team Extension SDK Contracts",
+        version: Some(
+            "10.1.26100.7705",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "balenaEtcher",
+        version: Some(
+            "2.1.6",
+        ),
+        publisher: Some(
+            "Balena Ltd. <hello@balena.io>",
+        ),
+        install_date: Some(
+            "20260904",
+        ),
+    },
+    InstalledApplication {
+        name: "vcpp_crt.redist.clickonce",
+        version: Some(
+            "14.44.35211",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "vs_CoreEditorFonts",
+        version: Some(
+            "17.7.40001",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "vs_FileTracker_Singleton",
+        version: Some(
+            "17.14.36015",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "vs_filehandler_amd64",
+        version: Some(
+            "17.14.36024",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "vs_filehandler_x86",
+        version: Some(
+            "17.14.36024",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "vs_githubprotocolhandlermsi",
+        version: Some(
+            "17.14.36015",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "vs_minshellmsires",
+        version: Some(
+            "17.14.36015",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "vs_minshellsharedmsi",
+        version: Some(
+            "17.14.36024",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "vs_minshellx64msi",
+        version: Some(
+            "17.14.36301",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+    InstalledApplication {
+        name: "vs_vswebprotocolselectormsi",
+        version: Some(
+            "17.14.36323",
+        ),
+        publisher: Some(
+            "Microsoft Corporation",
+        ),
+        install_date: Some(
+            "20260914",
+        ),
+    },
+]
+
+Final Snapshot: Snapshot {
+    machine_id: "b9ca689e-a2ca-4a5c-b75b-99afdef31006",
+    hostname: "test-host",
+    os: "detected",
+    collected_at: 2026-09-15T20:59:47.791544900Z,
+    hardware: HardwareSnapshot {
+        cpu_usage: 88.7442,
+        ram_total: 17048293376,
+        ram_used: 10455990272,
+        disk_usage: [
+            DiskInfo {
+                name: "Windows",
+                total_space: 479035650048,
+                available_space: 205739524096,
+                disk_type: None,
+                smart_status: None,
+            },
+        ],
+        uptime: 89450,
+        cpu_model: Some(
+            "Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz",
+        ),
+        cpu_max_ghz: Some(
+            1.992,
+        ),
+        cpu_current_ghz: Some(
+            1.792,
+        ),
+        cpu_socket: Some(
+            "U3E1",
+        ),
+        ram_slots: [
+            RamSlot {
+                slot: "DIMM A",
+                capacity: 8589934592,
+                speed: 3200,
+                ram_type: "Unknown",
+                part_number: "SMS4WEC8C1K0446FCG  ",
+            },
+            RamSlot {
+                slot: "DIMM B",
+                capacity: 8589934592,
+                speed: 3200,
+                ram_type: "Unknown",
+                part_number: "SMS4WEC8C1K0446FCG  ",
+            },
+        ],
+        gpus: [
+            GpuInfo {
+                model: "Intel(R) UHD Graphics 620",
+                vram: 1073741824,
+            },
+        ],
+        battery: Some(
+            BatteryInfo {
+                health_pct: 100,
+                status: "OK",
+            },
+        ),
+        service_tag: Some(
+            "DM9S9X2",
+        ),
+        serial_number: Some(
+            "DM9S9X2",
+        ),
+    },
+    security: Some(
+        SecuritySnapshot {
+            tpm_enabled: None,
+            bitlocker_status: Some(
+                [],
+            ),
+            antivirus_status: Some(
+                "Windows Defender, CrowdStrike Falcon Sensor",
+            ),
+            firewall_enabled: Some(
+                true,
+            ),
+        },
+    ),
+    access: Some(
+        AccessSnapshot {
+            local_users: [
+                "Administrador",
+                "Convidado",
+                "DefaultAccount",
+                "ti.sigga",
+                "WDAGUtilityAccount",
+            ],
+            local_admins: [
+                "AzureAD\\BeatrizCosta",
+                "AzureAD\\DavidSouza",
+                "AzureAD\\ErickNunes",
+                "AzureAD\\RogérioPascini",
+                "AzureAD\\SolonMendes",
+                "S-1-12-1-1644830528-1321777648-854851253-3595869939",
+                "S-1-12-1-2931379272-1271453032-2730232736-2565501808",
+                "SIGBH-FF6AE4\\Administrador",
+                "SIGBH-FF6AE4\\ti.sigga",
+            ],
+            rdp_enabled: None,
+            domain_joined: Some(
+                false,
+            ),
+            azure_ad_joined: None,
+            domain_name: Some(
+                "WORKGROUP",
+            ),
+        },
+    ),
+    logs: [
+        LogEntry {
+            timestamp: 2026-09-15T17:51:53Z,
+            level: "Info",
+            message: "O tipo de inicialização do serviço Serviço de Transferência Inteligente em Segundo Plano foi alterado de iniciar automaticamente para iniciar demanda.",
+            source: "Service Control Manager",
+        },
+        LogEntry {
+            timestamp: 2026-09-15T17:51:09Z,
+            level: "Info",
+            message: "Popup de aplicativo:  : Execute complete\n\nBundle Info:\n\tBundleName: CrowdStrike Windows Sensor\n\tBundleVersion: 7.40.21309.0\n\tBundleId: {13a3c31d-8ec9-443a-bd14-40d4714e1497}\n",
+            source: "CrowdStrikeSetup",
+        },
+        LogEntry {
+            timestamp: 2026-09-15T17:51:09Z,
+            level: "Info",
+            message: "Popup de aplicativo:  : Execute package complete:\n\tPackage ID: {bd26ab05-53dd-43b9-85be-ee2709fe3822}\n\tVersion: 7.40.21306.0\n\tDisplayName: (null)\n\tResult: 0x00000000\n\nBundle Info:\n\tBundleName: CrowdStrike Windows Sensor\n\tBundleVersion: 7.40.21309.0\n\tBundleId: {13a3c31d-8ec9-443a-bd14-40d4714e1497}\n",
+            source: "CrowdStrikeSetup",
+        },
+        LogEntry {
+            timestamp: 2026-09-15T17:51:07Z,
+            level: "Info",
+            message: "Popup de aplicativo:  : Execute complete\n\nBundle Info:\n\tBundleName: CrowdStrike Windows Sensor\n\tBundleVersion: 7.40.21306.0\n\tBundleId: {bd26ab05-53dd-43b9-85be-ee2709fe3822}\n",
+            source: "CrowdStrikeSetup",
+        },
+        LogEntry {
+            timestamp: 2026-09-15T17:51:07Z,
+            level: "Info",
+            message: "Popup de aplicativo:  : Execute begin\n\nBundle Info:\n\tBundleName: CrowdStrike Windows Sensor\n\tBundleVersion: 7.40.21306.0\n\tBundleId: {bd26ab05-53dd-43b9-85be-ee2709fe3822}\n",
+            source: "CrowdStrikeSetup",
+        },
+    ],
+    pending_updates: [
+        UpdateInfo {
+            package_name: "Qualcomm Communications Inc. - Net - 12.0.0.1238",
+            version_available: "Latest",
+            severity: "Normal",
+        },
+        UpdateInfo {
+            package_name: "2026-09 Atualização de Segurança (KB5129195) (26200.9457)",
+            version_available: "Latest",
+            severity: "Normal",
+        },
+    ],
+    observations: [],
+}
+
+Press ENTER to exit...
+error: process didn't exit successfully: `target\debug\agent-bin.exe` (exit code: 0xffffffff)
