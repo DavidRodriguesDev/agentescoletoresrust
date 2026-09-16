@@ -81,7 +81,7 @@ O projeto utiliza um **Workspace do Cargo**, dividindo as responsabilidades em c
 
 - [x] **Fase 1**: Estrutura de crates e abstração de Trait.
 - [x] **Fase 2**: Implementação dos coletores Windows e Linux (Hardware, Security, Access, Logs, Updates).
-- [ ] **Fase 3**: Persistência local (SQLite) para cache de dados offline.
+- [x] **Fase 3**: Persistência local (SQLite) para cache de dados offline.
 - [ ] **Fase 4**: Módulo de transporte HTTP para envio dos snapshots ao servidor.
 - [ ] **Fase 5**: Integração como Serviço/Daemon do Sistema (Windows Service / systemd unit).
 
