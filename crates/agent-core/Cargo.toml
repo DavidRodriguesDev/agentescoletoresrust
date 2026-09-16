@@ -11,3 +11,7 @@ thiserror = "1"
 anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
+agent-config = { path = "../agent-config" }
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }

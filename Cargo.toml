@@ -7,5 +7,6 @@ members = [
     "crates/collector-macos",
     "crates/agent-bin",
     "crates/agent-config",
+    "crates/server-bin",
 ]
 resolver = "2"

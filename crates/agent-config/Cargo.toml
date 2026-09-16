@@ -13,5 +13,6 @@ thiserror = "1.0"
 uuid = { version = "1.0", features = ["v4"] }
 # For Windows DPAPI
 windows = { version = "0.52", features = ["Win32_Security_Cryptography", "Win32_Foundation"] }
-# For secure password input
-rpassword = "7.3"
+
+[dev-dependencies]
+tempfile = "3.8"

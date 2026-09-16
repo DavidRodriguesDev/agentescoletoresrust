@@ -9,6 +9,7 @@ collector-common = { path = "../collector-common" }
 collector-windows = { path = "../collector-windows" }
 collector-linux = { path = "../collector-linux" }
 agent-config = { path = "../agent-config" }
+hostname = "0.3"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 tracing = "0.1"

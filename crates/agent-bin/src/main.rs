@@ -2,7 +2,8 @@ use agent_core::types::{Snapshot, HardwareSnapshot};
 use collector_common::PlatformCollector;
 use collector_windows::WindowsCollector;
 use collector_linux::LinuxCollector;
-use agent_config::{load_or_create_config, save_config, ensure_machine_id, secret};
+use agent_config::AgentConfig;
+use agent_core::transport::{HttpTransport, Transport};
 use chrono::Utc;
 use tracing::{info, warn, error};
 use tracing_subscriber::{fmt, prelude::*};
@@ -10,14 +11,14 @@ use clap::{Parser, Subcommand};
 use agent_core::execution_log::{ExecutionLog, StepLog, StepStatus, detect_permission_issue, RelatorioFinal};
 use std::time::Instant;
 use std::fs;
+use std::path::PathBuf;
+
 #[derive(Parser)]
 #[command(name = "agent-bin")]
 #[command(about = "Multi-OS Monitoring Agent", long_about = None)]
 struct Cli {
     #[arg(long)]
-    base_url: Option<String>,
-    #[arg(long)]
-    client_id: Option<String>,
+    config_path: Option<String>,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -25,118 +26,77 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Set the client secret for API authentication
-    SetSecret,
+    // No subcommands currently active
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
 
-    if let Some(Commands::SetSecret) = cli.command {
-        // Init tracing for the set-secret command
-        tracing_subscriber::fmt::init();
-        handle_set_secret();
-        return;
-    }
+    // 1. Determine config path
+    let config_path = if let Some(path) = cli.config_path {
+        PathBuf::from(path)
+    } else if cfg!(target_os = "windows") {
+        PathBuf::from("C:\\ProgramData\\agente-monitoramento\\config.toml")
+    } else {
+        PathBuf::from("/etc/agente-monitoramento/config.toml")
+    };
 
-    // 1. Load or create configuration
-    let mut config = match load_or_create_config() {
+    // 2. Load configuration
+    let config = match AgentConfig::load_from_file(&config_path) {
         Ok(c) => c,
         Err(e) => {
+            // Initialize basic tracing to log the error
             tracing_subscriber::fmt::init();
             error!("Configuration error: {}", e);
-            println!("\n[!] Error: Please configure the agent before running.");
-            println!("Check: C:\\ProgramData\\agente-monitoramento\\config.toml");
+            println!("\n[!] Error: Could not load configuration from {:?}", config_path);
             std::process::exit(1);
         }
     };
 
-    // 2. Override placeholders if flags are provided
-    let mut modified = false;
-    if let Some(url) = cli.base_url {
-        if config.server.base_url == "PREENCHER" {
-            config.server.base_url = url;
-            modified = true;
-        }
-    }
-    if let Some(id) = cli.client_id {
-        if config.server.client_id == "PREENCHER" {
-            config.server.client_id = id;
-            modified = true;
-        }
-    }
-
-    if modified {
-        if let Err(e) = save_config(&config) {
-            tracing_subscriber::fmt::init();
-            error!("Failed to save updated config: {}", e);
-        }
-    }
-
-    // 3. Final Validation of required fields
-    if config.server.base_url == "PREENCHER" || config.server.client_id == "PREENCHER" {
-        tracing_subscriber::fmt::init();
-        error!("Required configuration fields (base_url, client_id) are missing.");
-        println!("\n[!] Error: Configuration incomplete.");
-        println!("Run with --base-url <url> --client-id <id> or edit the config.toml file.");
-        std::process::exit(1);
-    }
-
-    // 4. Initialize Tracing based on config
-    let level = match config.log_level.to_lowercase().as_str() {
-        "trace" => tracing_subscriber::filter::LevelFilter::TRACE,
-        "debug" => tracing_subscriber::filter::LevelFilter::DEBUG,
-        "info" => tracing_subscriber::filter::LevelFilter::INFO,
-        "warn" => tracing_subscriber::filter::LevelFilter::WARN,
-        "error" => tracing_subscriber::filter::LevelFilter::ERROR,
-        _ => tracing_subscriber::filter::LevelFilter::INFO,
-    };
-
+    // 3. Initialize Tracing (Fixed INFO level)
     tracing_subscriber::registry()
-        .with(fmt::layer().with_filter(tracing_subscriber::filter::EnvFilter::from_default_env().add_directive(level.into())))
+        .with(fmt::layer())
+        .with(tracing_subscriber::filter::LevelFilter::INFO)
         .init();
 
-    // 5. Resolve and log Server URLs
-    info!("Server Configuration Resolved:");
-    info!("  Config URL: {}", config.server.resolved_config_url());
-    info!("  Ingest URL: {}", config.server.resolved_ingest_url());
-    info!("  OAuth URL:  {}", config.server.resolved_oauth_token_url());
+    // 4. Determine Machine ID from hostname
+    let machine_id = hostname::get()
+        .map(|h| h.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "UNKNOWN-HOST".to_string());
+    info!("Machine ID: {}", machine_id);
 
-    // 6. Handle machine_id
-    let machine_id = match ensure_machine_id(&mut config) {
-        Ok(id) => id,
+    // 5. Initialize Transport
+    let transport = match HttpTransport::new(config).await {
+        Ok(t) => t,
         Err(e) => {
-            error!("Failed to ensure machine_id: {}", e);
+            error!("Failed to initialize transport: {}", e);
             std::process::exit(1);
         }
     };
-    info!("Machine ID: {}", machine_id);
-
-    // 7. Try to load secret to verify it's set
-    match secret::load_secret() {
-        Ok(_) => info!("Client secret loaded successfully."),
-        Err(e) => {
-            warn!("Client secret not set: {}. Use set-secret to configure.", e);
-        }
-    }
 
     #[cfg(target_os = "windows")]
     {
         println!("--- Windows Monitoring Agent Test ---");
         let collector = WindowsCollector::new();
-        run_test_pipeline(collector, &machine_id);
+        run_test_pipeline(collector, &machine_id, &transport).await;
     }
 
     #[cfg(target_os = "linux")]
     {
         println!("--- Linux Monitoring Agent Test ---");
         let collector = LinuxCollector::new();
-        run_test_pipeline(collector, &machine_id);
+        run_test_pipeline(collector, &machine_id, &transport).await;
     }
 }
 
 fn salvar_relatorio(relatorio: &RelatorioFinal, machine_id: &str) {
-    let dir = agent_config::get_reports_dir();
+    let dir = if cfg!(target_os = "windows") {
+        PathBuf::from("C:\\ProgramData\\agente-monitoramento\\reports")
+    } else {
+        PathBuf::from("/etc/agente-monitoramento/reports")
+    };
+
     if let Err(e) = fs::create_dir_all(&dir) {
         error!("Failed to create reports directory {:?}: {}", dir, e);
         return;
@@ -155,16 +115,6 @@ fn salvar_relatorio(relatorio: &RelatorioFinal, machine_id: &str) {
             }
         }
         Err(e) => error!("Failed to serialize final report: {}", e),
-    }
-}
-
-fn handle_set_secret() {
-    println!("Enter the client secret:");
-    let password = rpassword::read_password().expect("Failed to read password");
-
-    match secret::store_secret(&password) {
-        Ok(_) => println!("Secret stored successfully!"),
-        Err(e) => error!("Failed to store secret: {}", e),
     }
 }
 
@@ -245,7 +195,7 @@ fn extrair_avisos_access(access: &Option<agent_core::types::AccessSnapshot>) -> 
     access.as_ref().map(|a| a.collection_warnings.clone()).unwrap_or_default()
 }
 
-fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &str) {
+async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &str, transport: &dyn Transport) {
     let mut execution_log = ExecutionLog::new();
 
     println!("Collecting Hardware...");
@@ -303,7 +253,7 @@ fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &str) {
 
     let snapshot = Snapshot {
         machine_id: machine_id.to_string(),
-        hostname: "test-host".to_string(),
+        hostname: machine_id.to_string(),
         os: "detected".to_string(),
         collected_at: Utc::now(),
         hardware,
@@ -315,6 +265,12 @@ fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &str) {
     };
 
     println!("\nFinal Snapshot: {:#?}", snapshot);
+
+    info!("Sending snapshot to server...");
+    match transport.send_snapshot(&snapshot).await {
+        Ok(_) => info!("Snapshot sent successfully!"),
+        Err(e) => error!("Failed to send snapshot: {}", e),
+    }
 
     execution_log.finish();
 
