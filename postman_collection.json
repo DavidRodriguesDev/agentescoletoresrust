@@ -1,0 +1,67 @@
+{
+  "info": {
+    "name": "Agente Monitoramento - Ingestão",
+    "description": "Collection para testar o endpoint de ingestão de snapshots do Agente Multi-OS.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Ingest Snapshot",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "x-api-key",
+            "value": "{{api_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"machine_id\": \"test-machine-123\",\n  \"hostname\": \"test-host\",\n  \"os\": \"windows\",\n  \"collected_at\": \"2026-09-16T12:00:00Z\",\n  \"hardware\": {\n    \"cpu_usage\": 15.5,\n    \"ram_total\": 17179869184,\n    \"ram_used\": 8589934592,\n    \"disk_usage\": [],\n    \"uptime\": 3600,\n    \"cpu_model\": \"Intel Core i7\",\n    \"cpu_max_ghz\": 3.6,\n    \"cpu_current_ghz\": 2.1,\n    \"cpu_socket\": \"LGA1200\",\n    \"ram_slots\": [],\n    \"gpus\": [],\n    \"battery\": null,\n    \"service_tag\": \"TAG123\",\n    \"serial_number\": \"SN123\",\n    \"collection_warnings\": []\n  },\n  \"security\": null,\n  \"access\": null,\n  \"logs\": [],\n  \"pending_updates\": [],\n  \"installed_applications\": [\n    {\n      \"name\": \"Google Chrome\",\n      \"version\": \"128.0.1\",\n      \"publisher\": \"Google LLC\",\n      \"install_date\": \"2024-01-01\"\n    }\n  ],\n  \"observations\": []\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/ingest",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "ingest"]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://localhost:8443",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "test-secret-key-123",
+      "type": "string"
+    }
+  ]
+}

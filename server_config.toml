@@ -1,0 +1,5 @@
+[server]
+endpoint = "https://localhost:8443"
+auth_method = "api_key"
+api_key_ref = "server_secret.txt"
+# For testing: you can change auth_method to "none"

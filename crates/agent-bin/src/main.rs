@@ -16,8 +16,6 @@ use std::fs;
 struct Cli {
     #[arg(long)]
     base_url: Option<String>,
-    #[arg(long)]
-    client_id: Option<String>,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -54,17 +52,16 @@ fn main() {
     // 2. Override placeholders if flags are provided
     let mut modified = false;
     if let Some(url) = cli.base_url {
-        if config.server.base_url == "PREENCHER" {
-            config.server.base_url = url;
+        if config.server.endpoint == "https://PREENCHER" {
+            config.server.endpoint = url;
             modified = true;
         }
     }
-    if let Some(id) = cli.client_id {
-        if config.server.client_id == "PREENCHER" {
-            config.server.client_id = id;
-            modified = true;
-        }
-    }
+
+    // client_id is now specific to AuthMethod::OAuth2ClientCredentials.
+    // Since the current CLI structure is simple, we remove the generic --client-id
+    // logic to avoid silent failure or ambiguity.
+    // Validations will now catch missing fields based on the chosen AuthMethod.
 
     if modified {
         if let Err(e) = save_config(&config) {
@@ -73,14 +70,16 @@ fn main() {
         }
     }
 
-    // 3. Final Validation of required fields
-    if config.server.base_url == "PREENCHER" || config.server.client_id == "PREENCHER" {
+    // 3. Final Validation of configuration (HTTPS and Auth Fields)
+    if let Err(e) = config.validate() {
         tracing_subscriber::fmt::init();
-        error!("Required configuration fields (base_url, client_id) are missing.");
-        println!("\n[!] Error: Configuration incomplete.");
-        println!("Run with --base-url <url> --client-id <id> or edit the config.toml file.");
+        error!("Configuration validation failed: {}", e);
+        println!("\n[!] Error: Configuration incomplete or insecure.");
+        println!("Check: C:\\ProgramData\\agente-monitoramento\\config.toml");
+        println!("Ensure endpoint starts with 'https://' and all fields for the chosen auth method are filled.");
         std::process::exit(1);
     }
+
 
     // 4. Initialize Tracing based on config
     let level = match config.log_level.to_lowercase().as_str() {
@@ -98,6 +97,7 @@ fn main() {
 
     // 5. Resolve and log Server URLs
     info!("Server Configuration Resolved:");
+    info!("  Endpoint: {}", config.server.endpoint);
     info!("  Config URL: {}", config.server.resolved_config_url());
     info!("  Ingest URL: {}", config.server.resolved_ingest_url());
     info!("  OAuth URL:  {}", config.server.resolved_oauth_token_url());
@@ -311,6 +311,7 @@ fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &str) {
         pending_updates: updates,
         security,
         access,
+        installed_applications: apps,
         observations: vec![],
     };
 

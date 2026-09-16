@@ -20,6 +20,7 @@ pub struct Snapshot {
     pub access: Option<AccessSnapshot>,
     pub logs: Vec<LogEntry>,
     pub pending_updates: Vec<UpdateInfo>,
+    pub installed_applications: Vec<InstalledApplication>,
     #[serde(default)]
     pub observations: Vec<String>,
 }

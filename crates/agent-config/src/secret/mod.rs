@@ -63,21 +63,13 @@ pub fn store_secret(plaintext: &str) -> Result<(), SecretError> {
 
         // Free the buffer allocated by DPAPI
         let handle = windows::Win32::Foundation::HLOCAL(data_out.pbData as *mut std::ffi::c_void);
-        LocalFree(handle);
+        let _ = LocalFree(handle);
 
         // Restrict ACL: only SYSTEM and Administrators
-        let status = Command::new("icacls")
-            .args([
-                path.to_str().unwrap(),
-                "/inheritance:r",
-                "/grant:r", "SYSTEM:(F)",
-                "/grant:r", "Administrators:(F)",
-            ])
-            .status();
-
-        if status.is_err() {
-            tracing::warn!("Failed to set ACLs on secret.bin via icacls");
+        if let Err(e) = crate::restrict_file_to_admins(&path) {
+            tracing::warn!("Failed to set ACLs on secret.bin: {}", e);
         }
+
     }
 
     Ok(())
@@ -117,7 +109,7 @@ pub fn load_secret() -> Result<String, SecretError> {
 
         // Free the buffer allocated by DPAPI
         let handle = windows::Win32::Foundation::HLOCAL(data_out.pbData as *mut std::ffi::c_void);
-        LocalFree(handle);
+        let _ = LocalFree(handle);
 
         Ok(secret)
     }
