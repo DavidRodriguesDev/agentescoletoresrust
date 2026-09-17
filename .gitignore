@@ -1,2 +1,7 @@
 /target
 /.openclaude
+
+config_test.toml
+*.pem
+*api_key*
+*.enc

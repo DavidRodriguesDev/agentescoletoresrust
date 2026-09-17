@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use std::fs;
 use thiserror::Error;
 
+pub mod secret;
+
 #[derive(Error, Debug)]
 pub enum ConfigError {
     #[error("IO error: {0}")]
@@ -94,24 +96,38 @@ impl AgentConfig {
     }
 
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
-        let content = fs::read_to_string(&path)?;
+        let path_ref = path.as_ref();
+        let content = if path_ref.extension().and_then(|s| s.to_str()) == Some("enc") {
+            let bytes = crate::secret::decrypt_file(path_ref)
+                .map_err(|e| ConfigError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+            String::from_utf8(bytes).map_err(|e| ConfigError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))?
+        } else {
+            fs::read_to_string(path_ref)?
+        };
+
         let cfg: AgentConfig = toml::from_str(&content)?;
         cfg.validate()?;
 
-        restrict_file_to_admins(path.as_ref())?;
+        crate::secret::restrict_to_system_and_admins(path_ref)
+            .map_err(|e| ConfigError::AclRestrictionFailed { path: path_ref.to_path_buf(), detail: e.to_string() })?;
         match &cfg.auth {
             AuthMethod::None => {}
             AuthMethod::ApiKey { key_file } => {
-                restrict_file_to_admins(key_file)?;
+                crate::secret::restrict_to_system_and_admins(key_file)
+                    .map_err(|e| ConfigError::AclRestrictionFailed { path: key_file.clone(), detail: e.to_string() })?;
             }
             AuthMethod::OAuth2ClientCredentials { client_secret_file, .. } => {
-                restrict_file_to_admins(client_secret_file)?;
+                crate::secret::restrict_to_system_and_admins(client_secret_file)
+                    .map_err(|e| ConfigError::AclRestrictionFailed { path: client_secret_file.clone(), detail: e.to_string() })?;
             }
             AuthMethod::Mtls { client_cert_file, client_key_file, ca_cert_file } => {
-                restrict_file_to_admins(client_cert_file)?;
-                restrict_file_to_admins(client_key_file)?;
+                crate::secret::restrict_to_system_and_admins(client_cert_file)
+                    .map_err(|e| ConfigError::AclRestrictionFailed { path: client_cert_file.clone(), detail: e.to_string() })?;
+                crate::secret::restrict_to_system_and_admins(client_key_file)
+                    .map_err(|e| ConfigError::AclRestrictionFailed { path: client_key_file.clone(), detail: e.to_string() })?;
                 if let Some(ca) = ca_cert_file {
-                    restrict_file_to_admins(ca)?;
+                    crate::secret::restrict_to_system_and_admins(ca)
+                        .map_err(|e| ConfigError::AclRestrictionFailed { path: ca.clone(), detail: e.to_string() })?;
                 }
             }
         }
@@ -120,46 +136,41 @@ impl AgentConfig {
     }
 }
 
-pub fn restrict_file_to_admins(path: &Path) -> Result<(), ConfigError> {
-    if cfg!(target_os = "windows") {
-        let path_str = path.to_string_lossy().to_string();
-        let output = std::process::Command::new("icacls")
-            .args([
-                path_str.as_str(),
-                "/inheritance:r",
-                "/grant:r", "*S-1-5-18:(F)",
-                "/grant:r", "*S-1-5-32-544:(F)",
-            ])
-            .output()
-            .map_err(|e| ConfigError::AclRestrictionFailed {
-                path: path.to_path_buf(),
-                detail: e.to_string(),
-            })?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            return Err(ConfigError::AclRestrictionFailed {
-                path: path.to_path_buf(),
-                detail: stderr,
-            });
-        }
-        Ok(())
-    } else {
-        // TODO: implementar equivalente via chmod/chown no Linux
-        Ok(())
-    }
-}
+// REMOVED: restrict_file_to_admins is now handled by crate::secret::restrict_to_system_and_admins
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
+    use crate::secret;
 
     fn write_toml(content: &str) -> NamedTempFile {
         let mut file = NamedTempFile::new().expect("temp file");
         write!(file, "{}", content).expect("write");
         file
+    }
+
+    #[test]
+    fn test_encrypted_config_loading() {
+        let toml_content = r#"endpoint = "https://example.com"
+auth = { type = "none" }
+"#;
+        let pure_file = write_toml(toml_content);
+
+        let mut enc_file = NamedTempFile::new().expect("enc file");
+        let enc_path = enc_file.path().to_path_buf();
+
+        // We need a path ending in .enc for our logic to trigger
+        let final_enc_path = enc_path.with_extension("enc");
+        fs::rename(&enc_path, &final_enc_path).expect("rename to .enc");
+
+        secret::encrypt_file(pure_file.path(), &final_enc_path).expect("encryption failed");
+
+        let cfg = AgentConfig::load_from_file(&final_enc_path).expect("should load encrypted config");
+        assert_eq!(cfg.endpoint, "https://example.com");
+
+        let _ = fs::remove_file(final_enc_path);
     }
 
     #[test]

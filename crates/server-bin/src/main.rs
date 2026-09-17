@@ -10,14 +10,24 @@ use axum::{
     Json,
     Router,
 };
+use clap::Parser;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as ConnBuilder;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use tower::Service;
 use tracing::{error, info, warn};
+
+#[derive(Parser)]
+#[command(name = "server-bin")]
+#[command(about = "Monitoring Server", long_about = None)]
+struct Cli {
+    #[arg(long)]
+    config_path: Option<String>,
+}
 
 struct AppState {
     config: config::ServerConfig,
@@ -49,6 +59,22 @@ async fn health_handler() -> &'static str {
     "ok"
 }
 
+async fn version_handler() -> impl IntoResponse {
+    let manifest = serde_json::json!({
+        "version": "0.2.0",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "size": 0,
+        "released_at": "2026-09-17T00:00:00Z"
+    });
+
+    let manifest_string = serde_json::to_string(&manifest).expect("Failed to serialize manifest");
+
+    Json(serde_json::json!({
+        "manifest": manifest_string,
+        "signature": ""
+    }))
+}
+
 async fn ingest_handler(
     Json(payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
@@ -60,7 +86,20 @@ async fn ingest_handler(
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let server_config = config::ServerConfig::default_for_dev();
+    let cli = Cli::parse();
+
+    let server_config = if let Some(path) = cli.config_path {
+        match config::ServerConfig::load_from_file(PathBuf::from(path)) {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Configuration error: {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        warn!("No config path provided, using default dev config");
+        config::ServerConfig::default_for_dev()
+    };
     info!("Server config loaded. Listen addr: {}", server_config.listen_addr);
 
     let cert = tls::generate_self_signed_cert().expect("failed to generate self-signed cert");
@@ -81,6 +120,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health_handler))
+        .route("/api/v1/version", get(version_handler))
         .route("/api/v1/ingest", post(ingest_handler))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state);

@@ -1,17 +1,19 @@
 use agent_core::types::{Snapshot, HardwareSnapshot};
 use collector_common::PlatformCollector;
 use collector_windows::WindowsCollector;
-use collector_linux::LinuxCollector;
 use agent_config::AgentConfig;
 use agent_core::transport::{HttpTransport, Transport};
 use chrono::Utc;
-use tracing::{info, warn, error};
+use tracing::{info, error};
 use tracing_subscriber::{fmt, prelude::*};
 use clap::{Parser, Subcommand};
 use agent_core::execution_log::{ExecutionLog, StepLog, StepStatus, detect_permission_issue, RelatorioFinal};
 use std::time::Instant;
 use std::fs;
 use std::path::PathBuf;
+use semver::Version;
+
+const AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Parser)]
 #[command(name = "agent-bin")]
@@ -27,6 +29,42 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     // No subcommands currently active
+}
+
+async fn check_for_update(transport: &HttpTransport, config: &AgentConfig) {
+    let url = format!("{}/api/v1/version", config.endpoint);
+
+    // Use the transport's configured client to ensure the dev CA is trusted
+    let client = transport.client();
+
+    match client.get(url).send().await {
+        Ok(resp) => {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                if let Some(latest_ver_str) = json["latest_version"].as_str() {
+                    let current_ver = Version::parse(AGENT_VERSION).expect("Invalid local version");
+                    let latest_ver = match Version::parse(latest_ver_str) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            error!("Server returned invalid version format: {}", latest_ver_str);
+                            return;
+                        }
+                    };
+
+                    if latest_ver > current_ver {
+                        info!("A new version is available! Current: {}, Latest: {}. Notes: {}",
+                            AGENT_VERSION, latest_ver_str, json["notes"].as_str().unwrap_or("No notes"));
+                    } else {
+                        info!("Agent is up to date. Version: {}", AGENT_VERSION);
+                    }
+                }
+            } else {
+                error!("Failed to parse version JSON response");
+            }
+        }
+        Err(e) => {
+            error!("Failed to check for updates: {}", e);
+        }
+    }
 }
 
 #[tokio::main]
@@ -60,20 +98,26 @@ async fn main() {
         .with(tracing_subscriber::filter::LevelFilter::INFO)
         .init();
 
-    // 4. Determine Machine ID from hostname
-    let machine_id = hostname::get()
-        .map(|h| h.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "UNKNOWN-HOST".to_string());
-    info!("Machine ID: {}", machine_id);
+    info!("Starting Agent v{}", AGENT_VERSION);
 
-    // 5. Initialize Transport
-    let transport = match HttpTransport::new(config).await {
+    // 4. Check for updates
+    // Note: We initialize transport first because check_for_update needs the config endpoint
+    // and the check logic is currently a simple GET.
+    let transport = match HttpTransport::new(config.clone()).await {
         Ok(t) => t,
         Err(e) => {
             error!("Failed to initialize transport: {}", e);
             std::process::exit(1);
         }
     };
+
+    check_for_update(&transport, &config).await;
+
+    // 5. Determine Machine ID from hostname
+    let machine_id = hostname::get()
+        .map(|h| h.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "UNKNOWN-HOST".to_string());
+    info!("Machine ID: {}", machine_id);
 
     #[cfg(target_os = "windows")]
     {

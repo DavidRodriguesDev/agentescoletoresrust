@@ -67,11 +67,24 @@ impl HttpTransport {
         })
     }
 
+    pub fn client(&self) -> &Client {
+        &self.client
+    }
+
     async fn apply_auth(&self, rb: RequestBuilder) -> Result<RequestBuilder, TransportError> {
         match &self.config.auth {
             AuthMethod::None => Ok(rb),
             AuthMethod::ApiKey { key_file } => {
-                let key = std::fs::read_to_string(key_file)?.trim().to_string();
+                let key = if key_file.extension().and_then(|s| s.to_str()) == Some("enc") {
+                    let bytes = agent_config::secret::decrypt_file(key_file)
+                        .map_err(|e| TransportError::Auth(format!("Failed to decrypt API key: {}", e)))?;
+                    String::from_utf8(bytes)
+                        .map_err(|e| TransportError::Auth(format!("Invalid UTF-8 in decrypted API key: {}", e)))?
+                        .trim()
+                        .to_string()
+                } else {
+                    std::fs::read_to_string(key_file)?.trim().to_string()
+                };
                 Ok(rb.header("X-API-Key", key))
             }
             AuthMethod::OAuth2ClientCredentials { .. } => {

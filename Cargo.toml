@@ -8,5 +8,6 @@ members = [
     "crates/agent-bin",
     "crates/agent-config",
     "crates/server-bin",
+    "crates/updater-bin",
 ]
 resolver = "2"
