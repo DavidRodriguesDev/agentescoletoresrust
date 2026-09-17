@@ -3,6 +3,7 @@ use rustls_pemfile::{certs, private_key};
 use std::io::BufReader;
 use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use tokio_rustls::rustls::ServerConfig as RustlsServerConfig;
+use std::path::PathBuf;
 
 pub struct SelfSignedCert {
     pub cert_pem: String,
@@ -17,6 +18,15 @@ pub fn generate_self_signed_cert() -> Result<SelfSignedCert, Box<dyn std::error:
         cert_pem: cert.pem(),
         key_pem: key_pair.serialize_pem(),
     })
+}
+
+pub fn salvar_cert_publico(cert: &SelfSignedCert) -> std::io::Result<PathBuf> {
+    let caminho = PathBuf::from("C:\\ProgramData\\agente-monitoramento\\dev-server-ca.pem");
+    if let Some(parent) = caminho.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&caminho, &cert.cert_pem)?;
+    Ok(caminho)
 }
 
 pub fn build_server_config(cert: &SelfSignedCert) -> Result<RustlsServerConfig, Box<dyn std::error::Error>> {

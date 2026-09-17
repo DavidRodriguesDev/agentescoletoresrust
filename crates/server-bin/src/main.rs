@@ -66,6 +66,12 @@ async fn main() {
     let cert = tls::generate_self_signed_cert().expect("failed to generate self-signed cert");
     info!("Self-signed certificate generated for localhost/127.0.0.1");
 
+    if let Ok(path) = tls::salvar_cert_publico(&cert) {
+        info!("Public certificate saved for development: {:?}", path);
+    } else {
+        warn!("Could not save public certificate to disk");
+    }
+
     let rustls_config = tls::build_server_config(&cert).expect("failed to build rustls server config");
     let acceptor = TlsAcceptor::from(Arc::new(rustls_config));
 

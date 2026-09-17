@@ -39,6 +39,7 @@ pub enum AuthMethod {
 pub struct AgentConfig {
     pub endpoint: String,
     pub auth: AuthMethod,
+    pub extra_ca_cert_path: Option<String>,
 }
 
 impl AgentConfig {

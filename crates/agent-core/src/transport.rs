@@ -30,6 +30,15 @@ impl HttpTransport {
     pub async fn new(config: AgentConfig) -> Result<Self, TransportError> {
         let mut client_builder = Client::builder();
 
+        if let Some(ca_path) = &config.extra_ca_cert_path {
+            let pem_bytes = std::fs::read(ca_path)
+                .map_err(|e| TransportError::Config(format!("Failed to read extra CA cert at {}: {}", ca_path, e)))?;
+            let cert_extra = reqwest::Certificate::from_pem(&pem_bytes)
+                .map_err(|e| TransportError::Config(format!("Failed to parse extra CA cert: {}", e)))?;
+            tracing::warn!("Confiando em CA de desenvolvimento extra: {}. Isso NUNCA deve estar configurado apontando pra um certificado de produção.", ca_path);
+            client_builder = client_builder.add_root_certificate(cert_extra);
+        }
+
         if let AuthMethod::Mtls { client_cert_file, client_key_file, ca_cert_file } = &config.auth {
             let mut combined_pem = std::fs::read(client_cert_file)?;
             let key_bytes = std::fs::read(client_key_file)?;
