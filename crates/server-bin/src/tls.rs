@@ -11,7 +11,12 @@ pub struct SelfSignedCert {
 }
 
 pub fn generate_self_signed_cert() -> Result<SelfSignedCert, Box<dyn std::error::Error>> {
-    let subject_alt_names = vec!["localhost".to_string(), "127.0.0.1".to_string()];
+    // Note: Update the IP below or regenerate the certificate if the server's local IP changes
+    let subject_alt_names = vec![
+        "localhost".to_string(),
+        "127.0.0.1".to_string(),
+        "172.20.1.124".to_string()
+    ];
     let CertifiedKey { cert, key_pair } = generate_simple_self_signed(subject_alt_names)?;
 
     Ok(SelfSignedCert {
@@ -20,14 +25,27 @@ pub fn generate_self_signed_cert() -> Result<SelfSignedCert, Box<dyn std::error:
     })
 }
 
-pub fn salvar_cert_publico(cert: &SelfSignedCert) -> std::io::Result<PathBuf> {
-    let caminho = PathBuf::from("C:\\ProgramData\\agente-monitoramento\\dev-server-ca.pem");
-    if let Some(parent) = caminho.parent() {
+pub fn salvar_cert_completo(cert: &SelfSignedCert) -> std::io::Result<()> {
+    let cert_path = PathBuf::from("C:\\ProgramData\\agente-monitoramento\\dev-server-ca.pem");
+    let key_path = PathBuf::from("C:\\ProgramData\\agente-monitoramento\\dev-server-ca.key");
+    if let Some(parent) = cert_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(&caminho, &cert.cert_pem)?;
-    Ok(caminho)
+    std::fs::write(&cert_path, &cert.cert_pem)?;
+    std::fs::write(&key_path, &cert.key_pem)?;
+    Ok(())
 }
+
+pub fn carregar_cert_existente() -> Result<SelfSignedCert, Box<dyn std::error::Error>> {
+    let cert_path = PathBuf::from("C:\\ProgramData\\agente-monitoramento\\dev-server-ca.pem");
+    let key_path = PathBuf::from("C:\\ProgramData\\agente-monitoramento\\dev-server-ca.key");
+
+    let cert_pem = std::fs::read_to_string(&cert_path)?;
+    let key_pem = std::fs::read_to_string(&key_path)?;
+
+    Ok(SelfSignedCert { cert_pem, key_pem })
+}
+
 
 pub fn build_server_config(cert: &SelfSignedCert) -> Result<RustlsServerConfig, Box<dyn std::error::Error>> {
     let mut cert_reader = BufReader::new(cert.cert_pem.as_bytes());

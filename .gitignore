@@ -6,3 +6,6 @@ config_test.toml
 *api_key*
 *.enc
 server_config_test.toml
+config_server_public.toml
+dist_test_client/
+server_test.log
