@@ -5,3 +5,4 @@ config_test.toml
 *.pem
 *api_key*
 *.enc
+server_config_test.toml
