@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Agente de Monitoramento Multi-OS (Rust)
 
 Este projeto implementa um agente de monitoramento cross-platform desenvolvido em Rust. O objetivo principal é coletar dados normalizados de hardware, segurança, acesso, logs e atualizações pendentes de diferentes sistemas operacionais (Windows, Linux e macOS) e consolidá-los em um snapshot único para envio a um servidor central.
@@ -89,3 +90,4 @@ O projeto utiliza um **Workspace do Cargo**, dividindo as responsabilidades em c
 - **Segurança**: O agente prioriza a estabilidade, usando `Option` e `Result` para garantir que a falha em coletar um dado específico (ex: GPU não encontrada) não derrube a execução total.
 - **Performance**: Implementação de cache via `Mutex` no Windows para evitar chamadas repetitivas e lentas ao PowerShell.
 - **Interoperabilidade**: Uso de JSON como formato de troca entre o shell do OS e o Rust, garantindo que caracteres especiais e encodings (UTF-8) sejam preservados.
+>>>>>>> gitlab/main
