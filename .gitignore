@@ -1,6 +1,9 @@
 /target
 /.openclaude
+/data
 
+
+config*.toml
 config_test.toml
 *.pem
 *api_key*
@@ -9,3 +12,5 @@ server_config_test.toml
 config_server_public.toml
 dist_test_client/
 server_test.log
+/releases/
+
