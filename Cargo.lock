@@ -27,7 +27,9 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+ "tracing-appender",
  "tracing-subscriber",
+ "windows-service",
 ]
 
 [[package]]
@@ -2290,6 +2292,7 @@ dependencies = [
  "hyper 1.11.1",
  "hyper-util",
  "rcgen",
+ "rustls 0.23.45",
  "rustls-pemfile 2.2.0",
  "semver",
  "serde",

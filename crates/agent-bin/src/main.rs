@@ -4,14 +4,22 @@ use collector_windows::WindowsCollector;
 use agent_config::AgentConfig;
 use agent_core::transport::{HttpTransport, Transport};
 use chrono::Utc;
-use tracing::{info, error};
+use tracing::{info, error, warn};
 use tracing_subscriber::{fmt, prelude::*};
 use clap::{Parser, Subcommand};
 use agent_core::execution_log::{ExecutionLog, StepLog, StepStatus, detect_permission_issue, RelatorioFinal};
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use std::fs;
 use std::path::PathBuf;
 use semver::Version;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+#[cfg(target_os = "windows")]
+use windows_service::{
+    service,
+    service_control_handler::{self, ServiceControlHandlerResult},
+    service_dispatcher,
+};
 
 const AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -22,6 +30,9 @@ struct Cli {
     #[arg(long)]
     config_path: Option<String>,
 
+    #[arg(long)]
+    service: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -31,38 +42,123 @@ enum Commands {
     // No subcommands currently active
 }
 
-async fn check_for_update(transport: &HttpTransport, config: &AgentConfig) {
-    let url = format!("{}/api/v1/version", config.endpoint);
+async fn run_agent_loop(
+    config: AgentConfig,
+    transport: HttpTransport,
+    stop_signal: Arc<AtomicBool>,
+) {
+    let machine_id = hostname::get()
+        .map(|h| h.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "UNKNOWN-HOST".to_string());
 
-    // Use the transport's configured client to ensure the dev CA is trusted
-    let client = transport.client();
+    info!("Agent loop started for machine: {}", machine_id);
 
-    match client.get(url).send().await {
-        Ok(resp) => {
-            if let Ok(json) = resp.json::<serde_json::Value>().await {
-                if let Some(latest_ver_str) = json["latest_version"].as_str() {
-                    let current_ver = Version::parse(AGENT_VERSION).expect("Invalid local version");
-                    let latest_ver = match Version::parse(latest_ver_str) {
-                        Ok(v) => v,
-                        Err(_) => {
-                            error!("Server returned invalid version format: {}", latest_ver_str);
-                            return;
-                        }
-                    };
+    let interval_secs = config.collection_interval_secs.unwrap_or(12 * 3600);
+    info!("Collection interval set to {} seconds", interval_secs);
 
-                    if latest_ver > current_ver {
-                        info!("A new version is available! Current: {}, Latest: {}. Notes: {}",
-                            AGENT_VERSION, latest_ver_str, json["notes"].as_str().unwrap_or("No notes"));
-                    } else {
-                        info!("Agent is up to date. Version: {}", AGENT_VERSION);
-                    }
-                }
-            } else {
-                error!("Failed to parse version JSON response");
-            }
+    // Perform initial collection immediately
+    info!("Performing initial snapshot collection...");
+    #[cfg(target_os = "windows")]
+    {
+        let collector = WindowsCollector::new();
+        run_test_pipeline(collector, &machine_id, &transport).await;
+    }
+
+    while !stop_signal.load(Ordering::SeqCst) {
+        info!("Starting scheduled snapshot collection...");
+        #[cfg(target_os = "windows")]
+        {
+            let collector = WindowsCollector::new();
+            run_test_pipeline(collector, &machine_id, &transport).await;
         }
+
+        info!("Snapshot collection cycle complete. Waiting for next interval.");
+
+        // Interruptible sleep: check stop_signal every second
+        for _ in 0..interval_secs {
+            if stop_signal.load(Ordering::SeqCst) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    }
+
+    info!("Agent loop received stop signal. Shutting down...");
+}
+
+#[cfg(target_os = "windows")]
+extern "system" fn service_main(_type: u32, _arg_ptr: *mut *mut u16) {
+    let running = Arc::new(AtomicBool::new(true));
+    let running_clone = Arc::clone(&running);
+
+    let status_handle = service_control_handler::register("AgentMonitor", move |control| {
+        match control {
+            service::ServiceControl::Stop | service::ServiceControl::Shutdown => {
+                info!("Service stop signal received");
+                running_clone.store(false, Ordering::SeqCst);
+                ServiceControlHandlerResult::NoError
+            }
+            _ => ServiceControlHandlerResult::NoError,
+        }
+    }).expect("Failed to register service control handler");
+
+    let status = service::ServiceStatus {
+        service_type: service::ServiceType::OWN_PROCESS,
+        current_state: service::ServiceState::Running,
+        controls_accepted: service::ServiceControlAccept::all(),
+        exit_code: service::ServiceExitCode::NO_ERROR,
+        checkpoint: 0,
+        wait_hint: Duration::from_secs(0),
+        process_id: None,
+    };
+
+    status_handle.set_service_status(status)
+        .expect("Failed to set service status to running");
+
+    info!("Agent monitor service started and running...");
+
+    let config_path = PathBuf::from("C:\\ProgramData\\agente-monitoramento\\config.toml");
+    match AgentConfig::load_from_file(&config_path) {
+        Ok(config) => {
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to build tokio runtime");
+
+            let transport = match rt.block_on(async { HttpTransport::new(config.clone()).await }) {
+                Ok(t) => t,
+                Err(e) => {
+                    error!("Service transport error: {}", e);
+                    return;
+                }
+            };
+
+            rt.block_on(run_agent_loop(config, transport, running));
+
+            let stopped_status = service::ServiceStatus {
+                service_type: service::ServiceType::OWN_PROCESS,
+                current_state: service::ServiceState::Stopped,
+                controls_accepted: service::ServiceControlAccept::all(),
+                exit_code: service::ServiceExitCode::NO_ERROR,
+                checkpoint: 0,
+                wait_hint: Duration::from_secs(0),
+                process_id: None,
+            };
+            let _ = status_handle.set_service_status(stopped_status);
+            info!("Agent monitor service stopped gracefully");
+        },
         Err(e) => {
-            error!("Failed to check for updates: {}", e);
+            error!("Service failed to load configuration from {:?}: {}", config_path, e);
+            let error_status = service::ServiceStatus {
+                service_type: service::ServiceType::OWN_PROCESS,
+                current_state: service::ServiceState::Stopped,
+                controls_accepted: service::ServiceControlAccept::all(),
+                exit_code: service::ServiceExitCode::ServiceSpecific(1),
+                checkpoint: 0,
+                wait_hint: Duration::from_secs(0),
+                process_id: None,
+            };
+            let _ = status_handle.set_service_status(error_status);
         }
     }
 }
@@ -70,6 +166,30 @@ async fn check_for_update(transport: &HttpTransport, config: &AgentConfig) {
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+
+    if cli.service && cfg!(target_os = "windows") {
+        let log_dir = PathBuf::from("C:\\ProgramData\\agente-monitoramento");
+        if let Err(e) = fs::create_dir_all(&log_dir) {
+            eprintln!("Warning: Failed to create log directory {:?}: {}", log_dir, e);
+        }
+
+        let file_appender = tracing_appender::rolling::never("C:\\ProgramData\\agente-monitoramento", "agent-service.log");
+        let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+        // Keep the guard alive for the duration of the program
+        Box::leak(Box::new(_guard));
+
+        tracing_subscriber::registry()
+            .with(fmt::layer().with_writer(non_blocking))
+            .with(tracing_subscriber::filter::LevelFilter::INFO)
+            .init();
+
+        if let Err(e) = service_dispatcher::start("AgentMonitor", service_main) {
+            error!("Failed to start service dispatcher: {}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
 
     // 1. Determine config path
     let config_path = if let Some(path) = cli.config_path {
@@ -100,9 +220,7 @@ async fn main() {
 
     info!("Starting Agent v{}", AGENT_VERSION);
 
-    // 4. Check for updates
-    // Note: We initialize transport first because check_for_update needs the config endpoint
-    // and the check logic is currently a simple GET.
+    // 4. Initialize Transport
     let transport = match HttpTransport::new(config.clone()).await {
         Ok(t) => t,
         Err(e) => {
@@ -110,8 +228,6 @@ async fn main() {
             std::process::exit(1);
         }
     };
-
-    check_for_update(&transport, &config).await;
 
     // 5. Determine Machine ID from hostname
     let machine_id = hostname::get()
@@ -129,8 +245,8 @@ async fn main() {
     #[cfg(target_os = "linux")]
     {
         println!("--- Linux Monitoring Agent Test ---");
-        let collector = LinuxCollector::new();
-        run_test_pipeline(collector, &machine_id, &transport).await;
+        // let collector = LinuxCollector::new();
+        // run_test_pipeline(collector, &machine_id, &transport).await;
     }
 }
 

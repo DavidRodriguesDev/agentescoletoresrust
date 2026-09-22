@@ -68,12 +68,12 @@ fn create_ureq_agent(config: &AgentConfig) -> ureq::Agent {
                         .with_no_client_auth();
 
                     builder = builder.tls_config(Arc::new(tls_config));
-                    info!("Configured ureq agent to trust CA from: {}", ca_path);
+                    info!("Configured ureq agent to trust CA from: {}", ca_path.display());
                 } else {
-                    error!("Failed to parse PEM certificates from {}: {:?}", ca_path, certs.err());
+                    error!("Failed to parse PEM certificates from {}: {:?}", ca_path.display(), certs.err());
                 }
             }
-            Err(e) => error!("Failed to read CA cert file {}: {}", ca_path, e),
+            Err(e) => error!("Failed to read CA cert file {}: {}", ca_path.display(), e),
         }
     }
 
@@ -428,44 +428,47 @@ extern "system" fn service_main(_type: u32, _arg_ptr: *mut *mut u16) {
         PathBuf::from("C:\\ProgramData\\agente-monitoramento\\config.toml")
     });
 
-    if let Ok(config) = AgentConfig::load_from_file(&config_path) {
-        let agent = create_ureq_agent(&config);
-        while running.load(Ordering::SeqCst) {
-            check_for_update(&agent, &config);
+    match AgentConfig::load_from_file(&config_path) {
+        Ok(config) => {
+            let agent = create_ureq_agent(&config);
+            while running.load(Ordering::SeqCst) {
+                check_for_update(&agent, &config);
 
-            // Interruptible sleep
-            for _ in 0..CHECK_INTERVAL.as_secs() {
-                if !running.load(Ordering::SeqCst) {
-                    break;
+                // Interruptible sleep
+                for _ in 0..CHECK_INTERVAL.as_secs() {
+                    if !running.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_secs(1));
                 }
-                std::thread::sleep(Duration::from_secs(1));
             }
-        }
 
-        // Clean shutdown
-        let stopped_status = service::ServiceStatus {
-            service_type: service::ServiceType::OWN_PROCESS,
-            current_state: service::ServiceState::Stopped,
-            controls_accepted: service::ServiceControlAccept::all(),
-            exit_code: service::ServiceExitCode::NO_ERROR,
-            checkpoint: 0,
-            wait_hint: Duration::from_secs(0),
-            process_id: None,
-        };
-        let _ = status_handle.set_service_status(stopped_status);
-        info!("Updater service stopped gracefully");
-    } else {
-        error!("Service failed to load configuration from {:?}", config_path);
-        let error_status = service::ServiceStatus {
-            service_type: service::ServiceType::OWN_PROCESS,
-            current_state: service::ServiceState::Stopped,
-            controls_accepted: service::ServiceControlAccept::all(),
-            exit_code: service::ServiceExitCode::ServiceSpecific(1),
-            checkpoint: 0,
-            wait_hint: Duration::from_secs(0),
-            process_id: None,
-        };
-        let _ = status_handle.set_service_status(error_status);
+            // Clean shutdown
+            let stopped_status = service::ServiceStatus {
+                service_type: service::ServiceType::OWN_PROCESS,
+                current_state: service::ServiceState::Stopped,
+                controls_accepted: service::ServiceControlAccept::all(),
+                exit_code: service::ServiceExitCode::NO_ERROR,
+                checkpoint: 0,
+                wait_hint: Duration::from_secs(0),
+                process_id: None,
+            };
+            let _ = status_handle.set_service_status(stopped_status);
+            info!("Updater service stopped gracefully");
+        },
+        Err(e) => {
+            error!("Service failed to load configuration from {:?}: {}", config_path, e);
+            let error_status = service::ServiceStatus {
+                service_type: service::ServiceType::OWN_PROCESS,
+                current_state: service::ServiceState::Stopped,
+                controls_accepted: service::ServiceControlAccept::all(),
+                exit_code: service::ServiceExitCode::ServiceSpecific(1),
+                checkpoint: 0,
+                wait_hint: Duration::from_secs(0),
+                process_id: None,
+            };
+            let _ = status_handle.set_service_status(error_status);
+        }
     }
 }
 

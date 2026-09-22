@@ -32,10 +32,10 @@ impl HttpTransport {
 
         if let Some(ca_path) = &config.extra_ca_cert_path {
             let pem_bytes = std::fs::read(ca_path)
-                .map_err(|e| TransportError::Config(format!("Failed to read extra CA cert at {}: {}", ca_path, e)))?;
+                .map_err(|e| TransportError::Config(format!("Failed to read extra CA cert at {}: {}", ca_path.display(), e)))?;
             let cert_extra = reqwest::Certificate::from_pem(&pem_bytes)
                 .map_err(|e| TransportError::Config(format!("Failed to parse extra CA cert: {}", e)))?;
-            tracing::warn!("Confiando em CA de desenvolvimento extra: {}. Isso NUNCA deve estar configurado apontando pra um certificado de produção.", ca_path);
+            tracing::warn!("Confiando em CA de desenvolvimento extra: {}. Isso NUNCA deve estar configurado apontando pra um certificado de produção.", ca_path.display());
             client_builder = client_builder.add_root_certificate(cert_extra);
         }
 
