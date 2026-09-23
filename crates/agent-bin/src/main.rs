@@ -10,6 +10,7 @@ use clap::{Parser, Subcommand};
 use agent_core::execution_log::{ExecutionLog, StepLog, StepStatus, detect_permission_issue, RelatorioFinal};
 use std::time::{Instant, Duration};
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 use semver::Version;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -44,8 +45,7 @@ enum Commands {
 
 async fn run_agent_loop(
     config: AgentConfig,
-    transport: HttpTransport,
-    stop_signal: Arc<AtomicBool>,
+    keep_running: Arc<AtomicBool>,
 ) {
     let machine_id = hostname::get()
         .map(|h| h.to_string_lossy().to_string())
@@ -53,30 +53,33 @@ async fn run_agent_loop(
 
     info!("Agent loop started for machine: {}", machine_id);
 
+    let transport = match HttpTransport::new(config.clone()).await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Failed to initialize transport: {}", e);
+            return;
+        }
+    };
+
     let interval_secs = config.collection_interval_secs.unwrap_or(12 * 3600);
     info!("Collection interval set to {} seconds", interval_secs);
 
-    // Perform initial collection immediately
-    info!("Performing initial snapshot collection...");
-    #[cfg(target_os = "windows")]
-    {
-        let collector = WindowsCollector::new();
-        run_test_pipeline(collector, &machine_id, &transport).await;
-    }
+    // Delay initial collection by 5 seconds to avoid immediate EDR/AV flags
+    info!("Waiting 5 seconds before first collection to stabilize...");
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
-    while !stop_signal.load(Ordering::SeqCst) {
-        info!("Starting scheduled snapshot collection...");
+    while keep_running.load(Ordering::SeqCst) {
+        info!("Starting snapshot collection cycle...");
         #[cfg(target_os = "windows")]
         {
             let collector = WindowsCollector::new();
             run_test_pipeline(collector, &machine_id, &transport).await;
         }
 
-        info!("Snapshot collection cycle complete. Waiting for next interval.");
+        info!("Snapshot collection cycle complete. Waiting for next interval ({}s).", interval_secs);
 
-        // Interruptible sleep: check stop_signal every second
         for _ in 0..interval_secs {
-            if stop_signal.load(Ordering::SeqCst) {
+        if !keep_running.load(Ordering::SeqCst) {
                 break;
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -88,53 +91,88 @@ async fn run_agent_loop(
 
 #[cfg(target_os = "windows")]
 extern "system" fn service_main(_type: u32, _arg_ptr: *mut *mut u16) {
+    // Crash diagnostic: capture panics to a simple file
+    std::panic::set_hook(Box::new(|info| {
+        let msg = format!("PANIC occurred: {}\n{}", chrono::Utc::now(), info);
+        let _ = std::fs::write("C:\\ProgramData\\agente-monitoramento\\crash.log", msg);
+    }));
+
     let running = Arc::new(AtomicBool::new(true));
     let running_clone = Arc::clone(&running);
 
     let status_handle = service_control_handler::register("AgentMonitor", move |control| {
+        // BRUTE FORCE RAW DEBUGGING: Synchronous write to file before anything else
+        let debug_path = "C:\\ProgramData\\agente-monitoramento\\raw-debug.txt";
+        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(debug_path) {
+            let now = std::time::SystemTime::now();
+            let log_line = format!("{:?} | Control: {:?}\n", now, control);
+            let _ = file.write_all(log_line.as_bytes());
+            let _ = file.sync_all();
+        }
+
+        let timestamp = Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ").to_string();
+        info!("[{}] !!! SERVICE CONTROL RECEIVED: {:?} !!!", timestamp, control);
         match control {
             service::ServiceControl::Stop | service::ServiceControl::Shutdown => {
-                info!("Service stop signal received");
+                info!("Service stop signal received - SETTING STOP SIGNAL TO FALSE");
                 running_clone.store(false, Ordering::SeqCst);
                 ServiceControlHandlerResult::NoError
             }
-            _ => ServiceControlHandlerResult::NoError,
+            _ => {
+                info!("Received non-stop control signal: {:?}. Ignoring.", control);
+                ServiceControlHandlerResult::NoError
+            }
         }
     }).expect("Failed to register service control handler");
 
-    let status = service::ServiceStatus {
+    // 1. Set status to START_PENDING immediately to tell SCM we are working on it
+    let pending_status = service::ServiceStatus {
         service_type: service::ServiceType::OWN_PROCESS,
-        current_state: service::ServiceState::Running,
+        current_state: service::ServiceState::StartPending,
         controls_accepted: service::ServiceControlAccept::all(),
         exit_code: service::ServiceExitCode::NO_ERROR,
         checkpoint: 0,
-        wait_hint: Duration::from_secs(0),
+        wait_hint: Duration::from_secs(10),
         process_id: None,
     };
+    let _ = status_handle.set_service_status(pending_status);
 
-    status_handle.set_service_status(status)
-        .expect("Failed to set service status to running");
-
-    info!("Agent monitor service started and running...");
-
+    // 2. Load config
     let config_path = PathBuf::from("C:\\ProgramData\\agente-monitoramento\\config.toml");
     match AgentConfig::load_from_file(&config_path) {
         Ok(config) => {
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .expect("Failed to build tokio runtime");
-
-            let transport = match rt.block_on(async { HttpTransport::new(config.clone()).await }) {
-                Ok(t) => t,
-                Err(e) => {
-                    error!("Service transport error: {}", e);
-                    return;
-                }
+            // 3. Now report as RUNNING. The SCM is satisfied.
+            let running_status = service::ServiceStatus {
+                service_type: service::ServiceType::OWN_PROCESS,
+                current_state: service::ServiceState::Running,
+                controls_accepted: service::ServiceControlAccept::all(),
+                exit_code: service::ServiceExitCode::NO_ERROR,
+                checkpoint: 0,
+                wait_hint: Duration::from_secs(0),
+                process_id: None,
             };
+            status_handle.set_service_status(running_status)
+                .expect("Failed to set service status to running");
 
-            rt.block_on(run_agent_loop(config, transport, running));
+            info!("Agent monitor service marked as RUNNING. Spawning worker thread...");
 
+            // 4. SPAWN WORKER THREAD
+            let running_for_thread = Arc::clone(&running);
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()
+                    .expect("Failed to build tokio runtime in worker thread");
+
+                rt.block_on(run_agent_loop(config, running_for_thread));
+            });
+
+            // 5. MAIN THREAD WAIT LOOP
+            while running.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(500));
+            }
+
+            // 6. Final stop status
             let stopped_status = service::ServiceStatus {
                 service_type: service::ServiceType::OWN_PROCESS,
                 current_state: service::ServiceState::Stopped,
@@ -221,13 +259,7 @@ async fn main() {
     info!("Starting Agent v{}", AGENT_VERSION);
 
     // 4. Initialize Transport
-    let transport = match HttpTransport::new(config.clone()).await {
-        Ok(t) => t,
-        Err(e) => {
-            error!("Failed to initialize transport: {}", e);
-            std::process::exit(1);
-        }
-    };
+    // Transport is now initialized inside run_agent_loop to avoid duplication and blockages
 
     // 5. Determine Machine ID from hostname
     let machine_id = hostname::get()
@@ -235,18 +267,18 @@ async fn main() {
         .unwrap_or_else(|_| "UNKNOWN-HOST".to_string());
     info!("Machine ID: {}", machine_id);
 
+    let keep_running = Arc::new(AtomicBool::new(true));
+
     #[cfg(target_os = "windows")]
     {
-        println!("--- Windows Monitoring Agent Test ---");
-        let collector = WindowsCollector::new();
-        run_test_pipeline(collector, &machine_id, &transport).await;
+        println!("--- Windows Monitoring Agent (Loop Mode) ---");
+        run_agent_loop(config, keep_running).await;
     }
 
     #[cfg(target_os = "linux")]
     {
-        println!("--- Linux Monitoring Agent Test ---");
-        // let collector = LinuxCollector::new();
-        // run_test_pipeline(collector, &machine_id, &transport).await;
+        println!("--- Linux Monitoring Agent (Loop Mode) ---");
+        // run_agent_loop(config, stop_signal).await;
     }
 }
 
@@ -374,6 +406,7 @@ async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &
         step.warnings = extrair_avisos_hardware(&hardware);
     }
     println!("Hardware: {:#?}", hardware);
+    tokio::time::sleep(Duration::from_secs(2)).await;
 
     println!("\nCollecting Security...");
     let security = executar_e_registrar(&mut execution_log, "security", || {
@@ -383,6 +416,7 @@ async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &
         step.warnings = extrair_avisos_security(&security);
     }
     println!("Security: {:#?}", security);
+    tokio::time::sleep(Duration::from_secs(2)).await;
 
     println!("\nCollecting Access...");
     let access = executar_e_registrar(&mut execution_log, "access", || {
@@ -392,18 +426,21 @@ async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &
         step.warnings = extrair_avisos_access(&access);
     }
     println!("Access: {:#?}", access);
+    tokio::time::sleep(Duration::from_secs(2)).await;
 
     println!("\nCollecting Logs...");
     let logs = executar_e_registrar_infalivel(&mut execution_log, "logs", || {
         collector.collect_logs()
     });
     println!("Logs: {:#?}", logs);
+    tokio::time::sleep(Duration::from_secs(2)).await;
 
     println!("\nCollecting Updates...");
     let updates = executar_e_registrar_infalivel(&mut execution_log, "updates", || {
         collector.collect_updates()
     });
     println!("Updates: {:#?}", updates);
+    tokio::time::sleep(Duration::from_secs(2)).await;
 
     println!("\nCollecting Installed Applications...");
     let apps = executar_e_registrar(&mut execution_log, "installed_applications", || {
@@ -443,8 +480,4 @@ async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &
 
     println!("\n=== Log de Execução ===");
     println!("{:#?}", relatorio.execution_log);
-
-    println!("\nPress ENTER to exit...");
-    let mut input = String::new();
-    let _ = std::io::stdin().read_line(&mut input);
 }
