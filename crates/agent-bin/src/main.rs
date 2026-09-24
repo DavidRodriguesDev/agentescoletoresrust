@@ -4,16 +4,29 @@ use collector_windows::WindowsCollector;
 use agent_config::AgentConfig;
 use agent_core::transport::{HttpTransport, Transport};
 use chrono::Utc;
-use tracing::{info, error};
-use tracing_subscriber::{fmt, prelude::*};
+use tracing::{info, error, debug};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use clap::{Parser, Subcommand};
 use agent_core::execution_log::{ExecutionLog, StepLog, StepStatus, detect_permission_issue, RelatorioFinal};
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use std::fs;
 use std::path::PathBuf;
-use semver::Version;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+#[cfg(target_os = "windows")]
+use windows_service::{
+    service,
+    service_control_handler::{self, ServiceControlHandlerResult},
+    service_dispatcher,
+};
 
 const AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Monta o filtro de nível de log a partir da variável de ambiente RUST_LOG.
+/// Se não estiver definida ou for inválida, usa "info" como padrão.
+fn build_env_filter() -> EnvFilter {
+    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
+}
 
 #[derive(Parser)]
 #[command(name = "agent-bin")]
@@ -21,6 +34,9 @@ const AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 struct Cli {
     #[arg(long)]
     config_path: Option<String>,
+
+    #[arg(long)]
+    service: bool,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -31,38 +47,149 @@ enum Commands {
     // No subcommands currently active
 }
 
-async fn check_for_update(transport: &HttpTransport, config: &AgentConfig) {
-    let url = format!("{}/api/v1/version", config.endpoint);
+async fn run_agent_loop(
+    config: AgentConfig,
+    keep_running: Arc<AtomicBool>,
+) {
+    let machine_id = hostname::get()
+        .map(|h| h.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "UNKNOWN-HOST".to_string());
 
-    // Use the transport's configured client to ensure the dev CA is trusted
-    let client = transport.client();
+    info!("Agent loop started for machine: {}", machine_id);
 
-    match client.get(url).send().await {
-        Ok(resp) => {
-            if let Ok(json) = resp.json::<serde_json::Value>().await {
-                if let Some(latest_ver_str) = json["latest_version"].as_str() {
-                    let current_ver = Version::parse(AGENT_VERSION).expect("Invalid local version");
-                    let latest_ver = match Version::parse(latest_ver_str) {
-                        Ok(v) => v,
-                        Err(_) => {
-                            error!("Server returned invalid version format: {}", latest_ver_str);
-                            return;
-                        }
-                    };
+    let transport = match HttpTransport::new(config.clone()).await {
+        Ok(t) => t,
+        Err(e) => {
+            error!("Failed to initialize transport: {}", e);
+            return;
+        }
+    };
 
-                    if latest_ver > current_ver {
-                        info!("A new version is available! Current: {}, Latest: {}. Notes: {}",
-                            AGENT_VERSION, latest_ver_str, json["notes"].as_str().unwrap_or("No notes"));
-                    } else {
-                        info!("Agent is up to date. Version: {}", AGENT_VERSION);
-                    }
-                }
-            } else {
-                error!("Failed to parse version JSON response");
+    let interval_secs = config.collection_interval_secs.unwrap_or(12 * 3600);
+    info!("Collection interval set to {} seconds", interval_secs);
+
+    // Delay initial collection by 5 seconds to avoid immediate EDR/AV flags
+    info!("Waiting 5 seconds before first collection to stabilize...");
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    while keep_running.load(Ordering::SeqCst) {
+        info!("Starting snapshot collection cycle...");
+
+        let collector = WindowsCollector::new();
+        run_collection_pipeline(collector, &machine_id, &transport).await;
+
+        info!("Snapshot collection cycle complete. Waiting for next interval ({}s).", interval_secs);
+
+        for _ in 0..interval_secs {
+            if !keep_running.load(Ordering::SeqCst) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    }
+
+    info!("Agent loop received stop signal. Shutting down...");
+}
+
+#[cfg(target_os = "windows")]
+extern "system" fn service_main(_type: u32, _arg_ptr: *mut *mut u16) {
+    // Crash diagnostic: capture panics to a simple file
+    std::panic::set_hook(Box::new(|info| {
+        let msg = format!("PANIC occurred: {}\n{}", chrono::Utc::now(), info);
+        let _ = std::fs::write("C:\\ProgramData\\agente-monitoramento\\crash.log", msg);
+    }));
+
+    let running = Arc::new(AtomicBool::new(true));
+    let running_clone = Arc::clone(&running);
+
+    let status_handle = service_control_handler::register("AgentMonitor", move |control| {
+        let timestamp = Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ").to_string();
+        info!("[{}] Service control received: {:?}", timestamp, control);
+        match control {
+            service::ServiceControl::Stop | service::ServiceControl::Shutdown => {
+                info!("Service stop signal received. Setting keep_running to false.");
+                running_clone.store(false, Ordering::SeqCst);
+                ServiceControlHandlerResult::NoError
+            }
+            _ => {
+                debug!("Received non-stop control signal: {:?}. Ignoring.", control);
+                ServiceControlHandlerResult::NoError
             }
         }
+    }).expect("Failed to register service control handler");
+
+    // 1. Set status to START_PENDING immediately to tell SCM we are working on it
+    let pending_status = service::ServiceStatus {
+        service_type: service::ServiceType::OWN_PROCESS,
+        current_state: service::ServiceState::StartPending,
+        controls_accepted: service::ServiceControlAccept::all(),
+        exit_code: service::ServiceExitCode::NO_ERROR,
+        checkpoint: 0,
+        wait_hint: Duration::from_secs(10),
+        process_id: None,
+    };
+    let _ = status_handle.set_service_status(pending_status);
+
+    // 2. Load config
+    let config_path = PathBuf::from("C:\\ProgramData\\agente-monitoramento\\config.toml");
+    match AgentConfig::load_from_file(&config_path) {
+        Ok(config) => {
+            // 3. Now report as RUNNING. The SCM is satisfied.
+            let running_status = service::ServiceStatus {
+                service_type: service::ServiceType::OWN_PROCESS,
+                current_state: service::ServiceState::Running,
+                controls_accepted: service::ServiceControlAccept::all(),
+                exit_code: service::ServiceExitCode::NO_ERROR,
+                checkpoint: 0,
+                wait_hint: Duration::from_secs(0),
+                process_id: None,
+            };
+            status_handle.set_service_status(running_status)
+                .expect("Failed to set service status to running");
+
+            info!("Agent monitor service marked as RUNNING. Spawning worker thread...");
+
+            // 4. SPAWN WORKER THREAD
+            let running_for_thread = Arc::clone(&running);
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()
+                    .expect("Failed to build tokio runtime in worker thread");
+
+                rt.block_on(run_agent_loop(config, running_for_thread));
+            });
+
+            // 5. MAIN THREAD WAIT LOOP
+            while running.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(500));
+            }
+
+            // 6. Final stop status
+            let stopped_status = service::ServiceStatus {
+                service_type: service::ServiceType::OWN_PROCESS,
+                current_state: service::ServiceState::Stopped,
+                controls_accepted: service::ServiceControlAccept::all(),
+                exit_code: service::ServiceExitCode::NO_ERROR,
+                checkpoint: 0,
+                wait_hint: Duration::from_secs(0),
+                process_id: None,
+            };
+            let _ = status_handle.set_service_status(stopped_status);
+            info!("Agent monitor service stopped gracefully");
+        },
         Err(e) => {
-            error!("Failed to check for updates: {}", e);
+            error!("Service failed to load configuration from {:?}: {}", config_path, e);
+            let error_status = service::ServiceStatus {
+                service_type: service::ServiceType::OWN_PROCESS,
+                current_state: service::ServiceState::Stopped,
+                controls_accepted: service::ServiceControlAccept::all(),
+                exit_code: service::ServiceExitCode::ServiceSpecific(1),
+                checkpoint: 0,
+                wait_hint: Duration::from_secs(0),
+                process_id: None,
+            };
+            let _ = status_handle.set_service_status(error_status);
         }
     }
 }
@@ -71,75 +198,73 @@ async fn check_for_update(transport: &HttpTransport, config: &AgentConfig) {
 async fn main() {
     let cli = Cli::parse();
 
+    if cli.service && cfg!(target_os = "windows") {
+        let log_dir = PathBuf::from("C:\\ProgramData\\agente-monitoramento");
+        if let Err(e) = fs::create_dir_all(&log_dir) {
+            eprintln!("Warning: Failed to create log directory {:?}: {}", log_dir, e);
+        }
+
+        let file_appender = tracing_appender::rolling::never("C:\\ProgramData\\agente-monitoramento", "agent-service.log");
+        let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+        // Keep the guard alive for the duration of the program
+        Box::leak(Box::new(_guard));
+
+        tracing_subscriber::registry()
+            .with(fmt::layer().with_writer(non_blocking))
+            .with(build_env_filter())
+            .init();
+
+        if let Err(e) = service_dispatcher::start("AgentMonitor", service_main) {
+            error!("Failed to start service dispatcher: {}", e);
+            std::process::exit(1);
+        }
+        return;
+    }
+
     // 1. Determine config path
     let config_path = if let Some(path) = cli.config_path {
         PathBuf::from(path)
-    } else if cfg!(target_os = "windows") {
-        PathBuf::from("C:\\ProgramData\\agente-monitoramento\\config.toml")
     } else {
-        PathBuf::from("/etc/agente-monitoramento/config.toml")
+        PathBuf::from("C:\\ProgramData\\agente-monitoramento\\config.toml")
     };
 
     // 2. Load configuration
     let config = match AgentConfig::load_from_file(&config_path) {
         Ok(c) => c,
         Err(e) => {
-            // Initialize basic tracing to log the error
-            tracing_subscriber::fmt::init();
+            tracing_subscriber::registry()
+                .with(fmt::layer())
+                .with(build_env_filter())
+                .init();
             error!("Configuration error: {}", e);
             println!("\n[!] Error: Could not load configuration from {:?}", config_path);
             std::process::exit(1);
         }
     };
 
-    // 3. Initialize Tracing (Fixed INFO level)
+    // 3. Initialize Tracing (level configurable via RUST_LOG, default "info")
     tracing_subscriber::registry()
         .with(fmt::layer())
-        .with(tracing_subscriber::filter::LevelFilter::INFO)
+        .with(build_env_filter())
         .init();
 
     info!("Starting Agent v{}", AGENT_VERSION);
 
-    // 4. Check for updates
-    // Note: We initialize transport first because check_for_update needs the config endpoint
-    // and the check logic is currently a simple GET.
-    let transport = match HttpTransport::new(config.clone()).await {
-        Ok(t) => t,
-        Err(e) => {
-            error!("Failed to initialize transport: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    check_for_update(&transport, &config).await;
-
-    // 5. Determine Machine ID from hostname
+    // 4. Determine Machine ID from hostname
     let machine_id = hostname::get()
         .map(|h| h.to_string_lossy().to_string())
         .unwrap_or_else(|_| "UNKNOWN-HOST".to_string());
     info!("Machine ID: {}", machine_id);
 
-    #[cfg(target_os = "windows")]
-    {
-        println!("--- Windows Monitoring Agent Test ---");
-        let collector = WindowsCollector::new();
-        run_test_pipeline(collector, &machine_id, &transport).await;
-    }
+    let keep_running = Arc::new(AtomicBool::new(true));
 
-    #[cfg(target_os = "linux")]
-    {
-        println!("--- Linux Monitoring Agent Test ---");
-        let collector = LinuxCollector::new();
-        run_test_pipeline(collector, &machine_id, &transport).await;
-    }
+    println!("--- Windows Monitoring Agent (Loop Mode) ---");
+    run_agent_loop(config, keep_running).await;
 }
 
 fn salvar_relatorio(relatorio: &RelatorioFinal, machine_id: &str) {
-    let dir = if cfg!(target_os = "windows") {
-        PathBuf::from("C:\\ProgramData\\agente-monitoramento\\reports")
-    } else {
-        PathBuf::from("/etc/agente-monitoramento/reports")
-    };
+    let dir = PathBuf::from("C:\\ProgramData\\agente-monitoramento\\reports");
 
     if let Err(e) = fs::create_dir_all(&dir) {
         error!("Failed to create reports directory {:?}: {}", dir, e);
@@ -175,6 +300,7 @@ fn executar_e_registrar<T, E: std::fmt::Display>(
 
     match resultado {
         Ok(valor) => {
+            debug!("Step '{}' completed successfully in {}ms", nome_etapa, duracao);
             log.steps.push(StepLog {
                 step_name: nome_etapa.to_string(),
                 started_at,
@@ -189,6 +315,11 @@ fn executar_e_registrar<T, E: std::fmt::Display>(
         Err(erro) => {
             let msg = erro.to_string();
             let permissao = detect_permission_issue(&msg);
+            if let Some(p) = &permissao {
+                tracing::warn!("Step '{}' failed with likely permission issue: {}", nome_etapa, p);
+            } else {
+                error!("Step '{}' failed after {}ms: {}", nome_etapa, duracao, msg);
+            }
             log.steps.push(StepLog {
                 step_name: nome_etapa.to_string(),
                 started_at,
@@ -213,6 +344,8 @@ fn executar_e_registrar_infalivel<T>(
     let inicio = Instant::now();
     let valor = func();
     let duracao = inicio.elapsed().as_millis();
+
+    debug!("Step '{}' completed in {}ms", nome_etapa, duracao);
 
     log.steps.push(StepLog {
         step_name: nome_etapa.to_string(),
@@ -239,14 +372,14 @@ fn extrair_avisos_access(access: &Option<agent_core::types::AccessSnapshot>) -> 
     access.as_ref().map(|a| a.collection_warnings.clone()).unwrap_or_default()
 }
 
-async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &str, transport: &dyn Transport) {
+async fn run_collection_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &str, transport: &dyn Transport) {
     let mut execution_log = ExecutionLog::new();
 
-    println!("Collecting Hardware...");
+    info!("Collecting hardware...");
     let hardware = executar_e_registrar(&mut execution_log, "hardware", || {
         collector.collect_hardware()
     }).unwrap_or_else(|| {
-        println!("Error collecting hardware. Using dummy data.");
+        error!("Hardware collection failed entirely. Using empty placeholder data.");
         HardwareSnapshot {
             cpu_usage: 0.0, ram_total: 0, ram_used: 0, disk_usage: vec![], uptime: 0,
             cpu_model: None, cpu_max_ghz: None, cpu_current_ghz: None, cpu_socket: None,
@@ -257,48 +390,48 @@ async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &
     if let Some(step) = execution_log.steps.iter_mut().find(|s| s.step_name == "hardware") {
         step.warnings = extrair_avisos_hardware(&hardware);
     }
-    println!("Hardware: {:#?}", hardware);
+    debug!("Hardware: {:#?}", hardware);
 
-    println!("\nCollecting Security...");
+    info!("Collecting security...");
     let security = executar_e_registrar(&mut execution_log, "security", || {
         collector.collect_security()
     }).flatten();
     if let Some(step) = execution_log.steps.iter_mut().find(|s| s.step_name == "security") {
         step.warnings = extrair_avisos_security(&security);
     }
-    println!("Security: {:#?}", security);
+    debug!("Security: {:#?}", security);
 
-    println!("\nCollecting Access...");
+    info!("Collecting access...");
     let access = executar_e_registrar(&mut execution_log, "access", || {
         collector.collect_access()
     }).flatten();
     if let Some(step) = execution_log.steps.iter_mut().find(|s| s.step_name == "access") {
         step.warnings = extrair_avisos_access(&access);
     }
-    println!("Access: {:#?}", access);
+    debug!("Access: {:#?}", access);
 
-    println!("\nCollecting Logs...");
+    info!("Collecting logs...");
     let logs = executar_e_registrar_infalivel(&mut execution_log, "logs", || {
         collector.collect_logs()
     });
-    println!("Logs: {:#?}", logs);
+    debug!("Logs collected: {} entries", logs.len());
 
-    println!("\nCollecting Updates...");
+    info!("Collecting pending updates...");
     let updates = executar_e_registrar_infalivel(&mut execution_log, "updates", || {
         collector.collect_updates()
     });
-    println!("Updates: {:#?}", updates);
+    debug!("Updates collected: {} entries", updates.len());
 
-    println!("\nCollecting Installed Applications...");
+    info!("Collecting installed applications...");
     let apps = executar_e_registrar(&mut execution_log, "installed_applications", || {
         collector.collect_installed_applications()
     }).unwrap_or_default();
-    println!("Apps: {:#?}", apps);
+    debug!("Applications collected: {} entries", apps.len());
 
     let snapshot = Snapshot {
         machine_id: machine_id.to_string(),
         hostname: machine_id.to_string(),
-        os: "detected".to_string(),
+        os: "windows".to_string(),
         collected_at: Utc::now(),
         hardware,
         logs,
@@ -308,11 +441,11 @@ async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &
         observations: vec![],
     };
 
-    println!("\nFinal Snapshot: {:#?}", snapshot);
+    debug!("Final snapshot assembled: {:#?}", snapshot);
 
     info!("Sending snapshot to server...");
     match transport.send_snapshot(&snapshot).await {
-        Ok(_) => info!("Snapshot sent successfully!"),
+        Ok(_) => info!("Snapshot sent successfully."),
         Err(e) => error!("Failed to send snapshot: {}", e),
     }
 
@@ -325,10 +458,5 @@ async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &
 
     salvar_relatorio(&relatorio, machine_id);
 
-    println!("\n=== Log de Execução ===");
-    println!("{:#?}", relatorio.execution_log);
-
-    println!("\nPress ENTER to exit...");
-    let mut input = String::new();
-    let _ = std::io::stdin().read_line(&mut input);
+    info!("Collection cycle finished. Steps: {}", relatorio.execution_log.steps.len());
 }

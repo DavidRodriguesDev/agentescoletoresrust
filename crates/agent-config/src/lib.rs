@@ -41,7 +41,8 @@ pub enum AuthMethod {
 pub struct AgentConfig {
     pub endpoint: String,
     pub auth: AuthMethod,
-    pub extra_ca_cert_path: Option<String>,
+    pub extra_ca_cert_path: Option<PathBuf>,
+    pub collection_interval_secs: Option<u64>,
 }
 
 impl AgentConfig {
@@ -105,7 +106,50 @@ impl AgentConfig {
             fs::read_to_string(path_ref)?
         };
 
-        let cfg: AgentConfig = toml::from_str(&content)?;
+        let mut cfg: AgentConfig = toml::from_str(&content)?;
+
+        // Resolve relative paths based on the config file's directory
+        let config_dir = path_ref.parent().unwrap_or_else(|| Path::new("."));
+
+        if let Some(ca_path) = &mut cfg.extra_ca_cert_path {
+            if !ca_path.is_absolute() {
+                let relative_path = ca_path.clone();
+                *ca_path = config_dir.join(relative_path);
+            }
+        }
+
+        match &mut cfg.auth {
+            AuthMethod::None => {}
+            AuthMethod::ApiKey { key_file } => {
+                if !key_file.is_absolute() {
+                    let relative_path = key_file.clone();
+                    *key_file = config_dir.join(relative_path);
+                }
+            }
+            AuthMethod::OAuth2ClientCredentials { client_secret_file, .. } => {
+                if !client_secret_file.is_absolute() {
+                    let relative_path = client_secret_file.clone();
+                    *client_secret_file = config_dir.join(relative_path);
+                }
+            }
+            AuthMethod::Mtls { client_cert_file, client_key_file, ca_cert_file } => {
+                if !client_cert_file.is_absolute() {
+                    let relative_path = client_cert_file.clone();
+                    *client_cert_file = config_dir.join(relative_path);
+                }
+                if !client_key_file.is_absolute() {
+                    let relative_path = client_key_file.clone();
+                    *client_key_file = config_dir.join(relative_path);
+                }
+                if let Some(ca) = ca_cert_file {
+                    if !ca.is_absolute() {
+                        let relative_path = ca.clone();
+                        *ca = config_dir.join(relative_path);
+                    }
+                }
+            }
+        }
+
         cfg.validate()?;
 
         crate::secret::restrict_to_system_and_admins(path_ref)
@@ -207,5 +251,36 @@ auth = { type = "none" }
         let file = write_toml(toml);
         let result = AgentConfig::load_from_file(file.path());
         assert!(matches!(result, Err(ConfigError::MissingAuthFile { field, .. }) if field == "key_file"));
+    }
+
+    #[test]
+    fn test_relative_paths_resolution() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join("config.toml");
+
+        let toml_content = r#"endpoint = "https://example.com"
+extra_ca_cert_path = "ca.pem"
+auth = { type = "api_key", key_file = "api_key.txt" }
+"#;
+        fs::write(&config_path, toml_content).unwrap();
+
+        // Create dummy files so validation passes
+        fs::write(temp_dir.path().join("ca.pem"), "ca").unwrap();
+        fs::write(temp_dir.path().join("api_key.txt"), "key").unwrap();
+
+        let cfg = AgentConfig::load_from_file(&config_path).expect("should load");
+
+        let expected_ca = temp_dir.path().join("ca.pem");
+        let expected_key = temp_dir.path().join("api_key.txt");
+
+        assert!(cfg.extra_ca_cert_path.as_ref().unwrap().is_absolute());
+        assert_eq!(cfg.extra_ca_cert_path.as_ref().unwrap(), &expected_ca);
+
+        if let AuthMethod::ApiKey { key_file } = cfg.auth {
+            assert!(key_file.is_absolute());
+            assert_eq!(key_file, expected_key);
+        } else {
+            panic!("Expected ApiKey auth method");
+        }
     }
 }

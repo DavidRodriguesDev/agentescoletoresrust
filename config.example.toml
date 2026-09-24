@@ -1,0 +1,8 @@
+endpoint = "SEU_ENDPOINT_AQUI"
+collection_interval_secs = 1200
+
+[auth]
+type = "none"
+# Se usar api_key:
+# type = "api_key"
+# key_file = "api_key.txt"

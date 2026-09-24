@@ -1,91 +1,144 @@
-# Agente de Monitoramento Multi-OS (Rust)
+# Agente de Monitoramento Multi-OS
 
-Este projeto implementa um agente de monitoramento cross-platform desenvolvido em Rust. O objetivo principal é coletar dados normalizados de hardware, segurança, acesso, logs e atualizações pendentes de diferentes sistemas operacionais (Windows, Linux e macOS) e consolidá-los em um snapshot único para envio a um servidor central.
+## 🌐 Visão Geral
+Este projeto implementa um ecossistema de monitoramento corporativo desenvolvido em Rust, projetado para a coleta e análise de dados de conformidade, segurança e hardware em escala (~160 máquinas) abrangendo Windows, Linux e macOS.
 
-## 🚀 Visão Geral da Arquitetura
-
-O projeto utiliza um **Workspace do Cargo**, dividindo as responsabilidades em crates modulares para garantir manutenibilidade e separação de conceitos:
-
-### 📦 Estrutura de Crates
-
-- **`agent-core`**: Define a "linguagem comum" do projeto. Contém todas as structs de dados (`HardwareSnapshot`, `LogEntry`, `UpdateInfo`, etc.) e a estrutura do `Snapshot` final que será enviada ao servidor.
-- **`collector-common`**: Camada de abstração. Define a trait `PlatformCollector`, que obriga todos os coletores de OS a implementarem as mesmas funções de coleta. Inclui a `CommonCollector` que usa a biblioteca `sysinfo` para métricas básicas (CPU, RAM, Disco) comuns a todos os sistemas.
-- **`collector-windows`**: Especialista em Windows. Executa scripts complexos de PowerShell e consultas CIM/WMI para extrair:
-    - Dados de BIOS, GPU e Bateria.
-    - Status de BitLocker, TPM e Antivírus.
-    - Grupos de Administradores e usuários RDP.
-    - Eventos do Windows Event Log e atualizações do Windows Update.
-- **`collector-linux`**: Especialista em Linux. Integra-se com as ferramentas nativas do ecossistema:
-    - `journalctl` para extração de logs do sistema via JSON.
-    - `apt` para verificação de pacotes pendentes.
-    - Métricas de hardware via `sysinfo`.
-- **`collector-macos`**: (Em desenvolvimento) Implementação para o ecossistema Apple.
-- **`agent-bin`**: O ponto de entrada do aplicativo. Detecta o sistema operacional em tempo de compilação e executa o pipeline de coleta, imprimindo o resultado final no console.
-
-## 🛠️ Como Funciona (Fluxo de Dados)
-
-1. **Detecção de OS**: O `agent-bin` usa atributos de compilação condicional (`#[cfg(target_os = "...")]`) para decidir qual implementação de `PlatformCollector` instanciar.
-2. **Coleta em Camadas**: 
-   - Primeiro, coleta-se o básico via `CommonCollector` (Cross-platform).
-   - Depois, o coletor específico (Windows/Linux) executa comandos de sistema para enriquecer os dados.
-3. **Normalização**: Dados brutos (como strings do PowerShell ou JSON do journalctl) são convertidos para tipos fortemente tipados do Rust (`agent-core`).
-4. **Snapshot Final**: Todas as informações são agrupadas em um objeto `Snapshot` com metadados da máquina (Hostname, MachineID, Timestamp).
-5. **Relatório de Execução**: O agente gera um `RelatorioFinal` que combina o `Snapshot` com um log detalhado da execução (tempo gasto por etapa, status de sucesso/erro e avisos de permissão), salvo automaticamente em JSON em `C:\ProgramData\agente-monitoramento\reports` (no Windows).
-
-## 💻 Guia de Instalação e Execução
-
-### Pré-requisitos Gerais
-- **Rust**: Instalado via `rustup` (incluindo `cargo`).
-- **smartmontools**: Para coleta de saúde de disco (SMART), instale o `smartctl`:
-    - **Windows**: `choco install smartmontools` ou via instalador oficial.
-    - **Linux**: `sudo apt install smartmontools`.
+O objetivo central é extrair snapshots detalhados do estado de cada máquina e transmiti-los para um servidor central de forma segura, permitindo a auditoria de vulnerabilidades, inventário de hardware e monitoramento de logs em tempo real.
 
 ---
 
-### 🪟 No Windows
+## 🏗️ Arquitetura do Sistema
 
-**Requisitos Adicionais**:
-- PowerShell 5.1 ou superior (Nativo).
-- Privilégios de **Administrador** (necessário para ler BitLocker, TPM e alguns logs de evento).
+O ecossistema é composto por quatro componentes principais que operam em conjunto:
 
-**Como Compilar e Rodar**:
-1. Abra o terminal (PowerShell ou CMD) como **Administrador**.
-2. Navegue até a pasta raiz do projeto.
-3. Execute:
-   ```powershell
-   cargo run -p agent-bin
-   ```
+### 1. Agent (Coletor)
+O binário `agent-bin` é instalado em cada máquina monitorada. Ele executa a coleta de dados localmente e os envia via HTTPS para o Servidor de Dados.
+- **Modo de Execução:** Pode ser rodado via CLI ou como um Serviço Windows nativo (`AgentMonitor`).
+- **Periodicidade:** Coleta snapshots em intervalos configuráveis (ex: a cada 20 minutos).
 
----
+### 2. Servidor de Dados (Ingest)
+O binário `server-bin` atua como o ponto de recepção dos snapshots.
+- **Responsabilidade:** Recebe snapshots via API REST, valida a autenticação (API Key) e persiste os dados em armazenamento (JSONL/Database).
+- **Segurança:** Implementa TLS com suporte a CAs customizados para ambientes de desenvolvimento/on-premise.
 
-### 🐧 No Linux
+### 3. Atualizador (AgentUpdater)
+O binário `updater-bin` roda como um serviço paralelo ao Agent no Windows.
+- **Responsabilidade:** Monitora a versão do agente instalada e verifica a existência de novas versões no servidor.
+- **Fluxo:** Download do binário $\rightarrow$ Verificação de Assinatura Digital $\rightarrow$ Substituição do binário do Agent $\rightarrow$ Reinicialização do serviço via SCM.
 
-**Requisitos Adicionais**:
-- `systemd` (para acesso ao `journalctl`).
-- `apt` (para verificação de updates em distribuições baseadas em Debian/Ubuntu).
-- Privilégios de **Sudo** para ler logs do sistema.
-
-**Como Compilar e Rodar**:
-1. Abra o terminal.
-2. Navegue até a pasta raiz do projeto.
-3. Execute:
-   ```bash
-   # Para rodar com privilégios de leitura de logs
-   sudo cargo run -p agent-bin
-   ```
-   *Nota: Se o cargo não estiver no path do root, use o caminho completo ou configure o sudoers.*
+### 4. Módulo de Relatórios
+Componente responsável por processar os snapshots brutos e transformá-los em relatórios de conformidade legíveis para a gestão.
 
 ---
 
-## 📋 Roadmap de Implementação
+## 📦 Estrutura do Workspace (Crates)
 
-- [x] **Fase 1**: Estrutura de crates e abstração de Trait.
-- [x] **Fase 2**: Implementação dos coletores Windows e Linux (Hardware, Security, Access, Logs, Updates).
-- [x] **Fase 3**: Persistência local (SQLite) para cache de dados offline.
-- [ ] **Fase 4**: Módulo de transporte HTTP para envio dos snapshots ao servidor.
-- [ ] **Fase 5**: Integração como Serviço/Daemon do Sistema (Windows Service / systemd unit).
+| Crate | Responsabilidade |
+| :--- | :--- |
+| `agent-core` | Definições de tipos comuns, estrutura do `Snapshot` e lógica de transporte HTTPS. |
+| `collector-common` | Abstrações (`PlatformCollector` trait) e métricas básicas via `sysinfo`. |
+| `collector-windows` | Coleta especializada via PowerShell, WMI e CIM (BitLocker, TPM, Event Logs). |
+| `collector-linux` | Coleta via `journalctl`, `apt` e ferramentas nativas de sistema. |
+| `collector-macos` | (Em desenvolvimento) Coleta especializada para ecossistema Apple. |
+| `agent-bin` | Orquestrador do pipeline de coleta e ponto de entrada do serviço Windows. |
+| `updater-bin` | Gerenciador de auto-update e ciclo de vida do binário do agente. |
+| `server-bin` | API de recepção de snapshots e gerenciamento de versões de update. |
+| `agent-config` | Lógica de carregamento de TOML, validação de endpoints e gestão de segredos. |
 
-## ⚙️ Detalhes Técnicos Relevantes
-- **Segurança**: O agente prioriza a estabilidade, usando `Option` e `Result` para garantir que a falha em coletar um dado específico (ex: GPU não encontrada) não derrube a execução total.
-- **Performance**: Implementação de cache via `Mutex` no Windows para evitar chamadas repetitivas e lentas ao PowerShell.
-- **Interoperabilidade**: Uso de JSON como formato de troca entre o shell do OS e o Rust, garantindo que caracteres especiais e encodings (UTF-8) sejam preservados.
+---
+
+## 🔄 Fluxo de Coleta e Snapshot
+
+1. **Hardware:** CPU, RAM, Discos (via SMART), GPU, Bateria e Service Tag.
+2. **Security:** Status de Antivírus, Firewall, BitLocker, TPM e Secure Boot.
+3. **Access:** Grupos de Administradores locais, usuários com RDP habilitado e permissões críticas.
+4. **Logs:** Extração de eventos críticos do Event Viewer (Windows) ou Journald (Linux).
+5. **Updates:** Lista de atualizações de segurança pendentes (KBs no Windows, pacotes no Linux).
+6. **Apps:** Inventário de softwares instalados e versões.
+
+**Formato do Snapshot:** Um objeto JSON contendo metadados da máquina (`machine_id`, `hostname`, `timestamp`), os dados de cada etapa acima e um `ExecutionLog` detalhando o tempo de execução e erros de permissão de cada etapa.
+
+---
+
+## 🔒 Segurança e Transporte
+
+### Transporte HTTPS
+A comunicação é feita via HTTPS utilizando a biblioteca `ureq`. O sistema suporta três métodos de autenticação:
+- **API Key:** Chave estática enviada no header `X-API-Key`.
+- **OAuth2:** Fluxo de Client Credentials para ambientes corporativos.
+- **mTLS:** Autenticação mútua via certificados X.509.
+
+**Ponte de Confiança TLS:** Para suportar servidores com certificados autoassinados ou CAs internas, o agente permite a configuração de um `extra_ca_cert_path` no `config.toml`, que é injetado no Root Store do cliente TLS.
+
+### Proteção de Segredos
+- **ACLs de Arquivo:** No Windows, o agente aplica permissões restritas aos arquivos de configuração e chaves (`restrict_to_system_and_admins`), garantindo que apenas o usuário `SYSTEM` e Administradores possam lê-los.
+- **Criptografia:** Implementação de suporte a arquivos `.enc` utilizando DPAPI no Windows para proteger segredos em repouso.
+
+---
+
+## ⚙️ Instalação e Configuração
+
+### Instalação como Serviço Windows
+O agente é instalado via script PowerShell:
+```powershell
+# Executar como Administrador
+.\install-agent-service.ps1
+```
+O script registra o serviço `AgentMonitor` com o binário em `C:\ProgramData\agente-monitoramento\agent-bin.exe` e o argumento `--service`.
+
+**Gestão via sc.exe:**
+```powershell
+sc.exe start AgentMonitor
+sc.exe stop AgentMonitor
+sc.exe query AgentMonitor
+```
+
+### Configuração (`config.example.toml`)
+O arquivo de configuração deve ser colocado em `C:\ProgramData\agente-monitoramento\config.toml`.
+
+| Campo | Tipo | Descrição | Exemplo |
+| :--- | :--- | :--- | :--- |
+| `endpoint` | String | URL do servidor de ingestão (obrigatório HTTPS). | `"https://api.monitor.local"` |
+| `collection_interval_secs` | Int | Intervalo entre coletas em segundos. | `1200` (20 min) |
+| `auth.type` | String | Método de autenticação (`none`, `api_key`, `oauth2`, `mtls`). | `"api_key"` |
+| `auth.key_file` | Path | Caminho para o arquivo contendo a API Key. | `"api_key.txt"` |
+| `extra_ca_cert_path` | Path | (Opcional) Caminho para o certificado CA do servidor. | `"ca.pem"` |
+
+---
+
+## 🛠️ Build e Requisitos
+
+### Requisitos
+- **Rust:** Versão estável (via `rustup`).
+- **Dependências:**
+  - `smartmontools` (Opcional): Necessário para coleta de saúde de disco (SMART).
+  - Windows: PowerShell 5.1+.
+
+### Compilação
+```bash
+# Build de todo o workspace
+cargo build --workspace
+
+# Build específico do agente
+cargo build -p agent-bin
+```
+
+---
+
+## ⚠️ Troubleshooting e Lições Aprendidas
+
+### Bug de Polaridade do AtomicBool (Histórico)
+Durante o desenvolvimento do serviço Windows, foi identificado um bug onde a variável de controle de execução (`stop_signal` vs `keep_running`) possuía semânticas opostas entre a `service_main` e a `run_agent_loop`.
+- **Sintoma:** O agente iniciava e desligava imediatamente.
+- **Causa:** O loop esperava `false` para rodar, mas o serviço iniciava com `true`.
+- **Solução:** Padronização de toda a base de código para a semântica `keep_running` (True = Continuar / False = Parar).
+
+---
+
+## 📈 Status Atual e Próximos Passos
+- [x] Implementação completa do Coletor Windows e Linux.
+- [x] Implementação do Servidor de Ingestão básico.
+- [x] Sistema de Auto-Update funcional.
+- [ ] Implementação do Coletor macOS.
+- [ ] Definição de infraestrutura final (Cloud vs On-Premise).
+- [ ] Implementação de Dashboard de visualização de snapshots.

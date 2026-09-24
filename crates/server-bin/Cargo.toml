@@ -10,6 +10,7 @@ semver = "1.0"
 sha2 = "0.10"
 axum = { version = "=0.7.9", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
+rustls = { version = "0.23", features = ["ring"] }
 tokio-rustls = "0.26"
 rustls-pemfile = "2"
 hyper = { version = "1", features = ["full"] }
