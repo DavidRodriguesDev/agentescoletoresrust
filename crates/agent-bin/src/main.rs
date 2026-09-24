@@ -4,15 +4,13 @@ use collector_windows::WindowsCollector;
 use agent_config::AgentConfig;
 use agent_core::transport::{HttpTransport, Transport};
 use chrono::Utc;
-use tracing::{info, error, warn};
-use tracing_subscriber::{fmt, prelude::*};
+use tracing::{info, error, debug};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use clap::{Parser, Subcommand};
 use agent_core::execution_log::{ExecutionLog, StepLog, StepStatus, detect_permission_issue, RelatorioFinal};
 use std::time::{Instant, Duration};
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
-use semver::Version;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 #[cfg(target_os = "windows")]
@@ -23,6 +21,12 @@ use windows_service::{
 };
 
 const AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Monta o filtro de nível de log a partir da variável de ambiente RUST_LOG.
+/// Se não estiver definida ou for inválida, usa "info" como padrão.
+fn build_env_filter() -> EnvFilter {
+    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
+}
 
 #[derive(Parser)]
 #[command(name = "agent-bin")]
@@ -70,16 +74,14 @@ async fn run_agent_loop(
 
     while keep_running.load(Ordering::SeqCst) {
         info!("Starting snapshot collection cycle...");
-        #[cfg(target_os = "windows")]
-        {
-            let collector = WindowsCollector::new();
-            run_test_pipeline(collector, &machine_id, &transport).await;
-        }
+
+        let collector = WindowsCollector::new();
+        run_collection_pipeline(collector, &machine_id, &transport).await;
 
         info!("Snapshot collection cycle complete. Waiting for next interval ({}s).", interval_secs);
 
         for _ in 0..interval_secs {
-        if !keep_running.load(Ordering::SeqCst) {
+            if !keep_running.load(Ordering::SeqCst) {
                 break;
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -101,25 +103,16 @@ extern "system" fn service_main(_type: u32, _arg_ptr: *mut *mut u16) {
     let running_clone = Arc::clone(&running);
 
     let status_handle = service_control_handler::register("AgentMonitor", move |control| {
-        // BRUTE FORCE RAW DEBUGGING: Synchronous write to file before anything else
-        let debug_path = "C:\\ProgramData\\agente-monitoramento\\raw-debug.txt";
-        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(debug_path) {
-            let now = std::time::SystemTime::now();
-            let log_line = format!("{:?} | Control: {:?}\n", now, control);
-            let _ = file.write_all(log_line.as_bytes());
-            let _ = file.sync_all();
-        }
-
         let timestamp = Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ").to_string();
-        info!("[{}] !!! SERVICE CONTROL RECEIVED: {:?} !!!", timestamp, control);
+        info!("[{}] Service control received: {:?}", timestamp, control);
         match control {
             service::ServiceControl::Stop | service::ServiceControl::Shutdown => {
-                info!("Service stop signal received - SETTING STOP SIGNAL TO FALSE");
+                info!("Service stop signal received. Setting keep_running to false.");
                 running_clone.store(false, Ordering::SeqCst);
                 ServiceControlHandlerResult::NoError
             }
             _ => {
-                info!("Received non-stop control signal: {:?}. Ignoring.", control);
+                debug!("Received non-stop control signal: {:?}. Ignoring.", control);
                 ServiceControlHandlerResult::NoError
             }
         }
@@ -219,7 +212,7 @@ async fn main() {
 
         tracing_subscriber::registry()
             .with(fmt::layer().with_writer(non_blocking))
-            .with(tracing_subscriber::filter::LevelFilter::INFO)
+            .with(build_env_filter())
             .init();
 
         if let Err(e) = service_dispatcher::start("AgentMonitor", service_main) {
@@ -232,36 +225,33 @@ async fn main() {
     // 1. Determine config path
     let config_path = if let Some(path) = cli.config_path {
         PathBuf::from(path)
-    } else if cfg!(target_os = "windows") {
-        PathBuf::from("C:\\ProgramData\\agente-monitoramento\\config.toml")
     } else {
-        PathBuf::from("/etc/agente-monitoramento/config.toml")
+        PathBuf::from("C:\\ProgramData\\agente-monitoramento\\config.toml")
     };
 
     // 2. Load configuration
     let config = match AgentConfig::load_from_file(&config_path) {
         Ok(c) => c,
         Err(e) => {
-            // Initialize basic tracing to log the error
-            tracing_subscriber::fmt::init();
+            tracing_subscriber::registry()
+                .with(fmt::layer())
+                .with(build_env_filter())
+                .init();
             error!("Configuration error: {}", e);
             println!("\n[!] Error: Could not load configuration from {:?}", config_path);
             std::process::exit(1);
         }
     };
 
-    // 3. Initialize Tracing (Fixed INFO level)
+    // 3. Initialize Tracing (level configurable via RUST_LOG, default "info")
     tracing_subscriber::registry()
         .with(fmt::layer())
-        .with(tracing_subscriber::filter::LevelFilter::INFO)
+        .with(build_env_filter())
         .init();
 
     info!("Starting Agent v{}", AGENT_VERSION);
 
-    // 4. Initialize Transport
-    // Transport is now initialized inside run_agent_loop to avoid duplication and blockages
-
-    // 5. Determine Machine ID from hostname
+    // 4. Determine Machine ID from hostname
     let machine_id = hostname::get()
         .map(|h| h.to_string_lossy().to_string())
         .unwrap_or_else(|_| "UNKNOWN-HOST".to_string());
@@ -269,25 +259,12 @@ async fn main() {
 
     let keep_running = Arc::new(AtomicBool::new(true));
 
-    #[cfg(target_os = "windows")]
-    {
-        println!("--- Windows Monitoring Agent (Loop Mode) ---");
-        run_agent_loop(config, keep_running).await;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        println!("--- Linux Monitoring Agent (Loop Mode) ---");
-        // run_agent_loop(config, stop_signal).await;
-    }
+    println!("--- Windows Monitoring Agent (Loop Mode) ---");
+    run_agent_loop(config, keep_running).await;
 }
 
 fn salvar_relatorio(relatorio: &RelatorioFinal, machine_id: &str) {
-    let dir = if cfg!(target_os = "windows") {
-        PathBuf::from("C:\\ProgramData\\agente-monitoramento\\reports")
-    } else {
-        PathBuf::from("/etc/agente-monitoramento/reports")
-    };
+    let dir = PathBuf::from("C:\\ProgramData\\agente-monitoramento\\reports");
 
     if let Err(e) = fs::create_dir_all(&dir) {
         error!("Failed to create reports directory {:?}: {}", dir, e);
@@ -323,6 +300,7 @@ fn executar_e_registrar<T, E: std::fmt::Display>(
 
     match resultado {
         Ok(valor) => {
+            debug!("Step '{}' completed successfully in {}ms", nome_etapa, duracao);
             log.steps.push(StepLog {
                 step_name: nome_etapa.to_string(),
                 started_at,
@@ -337,6 +315,11 @@ fn executar_e_registrar<T, E: std::fmt::Display>(
         Err(erro) => {
             let msg = erro.to_string();
             let permissao = detect_permission_issue(&msg);
+            if let Some(p) = &permissao {
+                tracing::warn!("Step '{}' failed with likely permission issue: {}", nome_etapa, p);
+            } else {
+                error!("Step '{}' failed after {}ms: {}", nome_etapa, duracao, msg);
+            }
             log.steps.push(StepLog {
                 step_name: nome_etapa.to_string(),
                 started_at,
@@ -361,6 +344,8 @@ fn executar_e_registrar_infalivel<T>(
     let inicio = Instant::now();
     let valor = func();
     let duracao = inicio.elapsed().as_millis();
+
+    debug!("Step '{}' completed in {}ms", nome_etapa, duracao);
 
     log.steps.push(StepLog {
         step_name: nome_etapa.to_string(),
@@ -387,14 +372,14 @@ fn extrair_avisos_access(access: &Option<agent_core::types::AccessSnapshot>) -> 
     access.as_ref().map(|a| a.collection_warnings.clone()).unwrap_or_default()
 }
 
-async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &str, transport: &dyn Transport) {
+async fn run_collection_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &str, transport: &dyn Transport) {
     let mut execution_log = ExecutionLog::new();
 
-    println!("Collecting Hardware...");
+    info!("Collecting hardware...");
     let hardware = executar_e_registrar(&mut execution_log, "hardware", || {
         collector.collect_hardware()
     }).unwrap_or_else(|| {
-        println!("Error collecting hardware. Using dummy data.");
+        error!("Hardware collection failed entirely. Using empty placeholder data.");
         HardwareSnapshot {
             cpu_usage: 0.0, ram_total: 0, ram_used: 0, disk_usage: vec![], uptime: 0,
             cpu_model: None, cpu_max_ghz: None, cpu_current_ghz: None, cpu_socket: None,
@@ -405,53 +390,48 @@ async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &
     if let Some(step) = execution_log.steps.iter_mut().find(|s| s.step_name == "hardware") {
         step.warnings = extrair_avisos_hardware(&hardware);
     }
-    println!("Hardware: {:#?}", hardware);
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    debug!("Hardware: {:#?}", hardware);
 
-    println!("\nCollecting Security...");
+    info!("Collecting security...");
     let security = executar_e_registrar(&mut execution_log, "security", || {
         collector.collect_security()
     }).flatten();
     if let Some(step) = execution_log.steps.iter_mut().find(|s| s.step_name == "security") {
         step.warnings = extrair_avisos_security(&security);
     }
-    println!("Security: {:#?}", security);
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    debug!("Security: {:#?}", security);
 
-    println!("\nCollecting Access...");
+    info!("Collecting access...");
     let access = executar_e_registrar(&mut execution_log, "access", || {
         collector.collect_access()
     }).flatten();
     if let Some(step) = execution_log.steps.iter_mut().find(|s| s.step_name == "access") {
         step.warnings = extrair_avisos_access(&access);
     }
-    println!("Access: {:#?}", access);
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    debug!("Access: {:#?}", access);
 
-    println!("\nCollecting Logs...");
+    info!("Collecting logs...");
     let logs = executar_e_registrar_infalivel(&mut execution_log, "logs", || {
         collector.collect_logs()
     });
-    println!("Logs: {:#?}", logs);
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    debug!("Logs collected: {} entries", logs.len());
 
-    println!("\nCollecting Updates...");
+    info!("Collecting pending updates...");
     let updates = executar_e_registrar_infalivel(&mut execution_log, "updates", || {
         collector.collect_updates()
     });
-    println!("Updates: {:#?}", updates);
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    debug!("Updates collected: {} entries", updates.len());
 
-    println!("\nCollecting Installed Applications...");
+    info!("Collecting installed applications...");
     let apps = executar_e_registrar(&mut execution_log, "installed_applications", || {
         collector.collect_installed_applications()
     }).unwrap_or_default();
-    println!("Apps: {:#?}", apps);
+    debug!("Applications collected: {} entries", apps.len());
 
     let snapshot = Snapshot {
         machine_id: machine_id.to_string(),
         hostname: machine_id.to_string(),
-        os: "detected".to_string(),
+        os: "windows".to_string(),
         collected_at: Utc::now(),
         hardware,
         logs,
@@ -461,11 +441,11 @@ async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &
         observations: vec![],
     };
 
-    println!("\nFinal Snapshot: {:#?}", snapshot);
+    debug!("Final snapshot assembled: {:#?}", snapshot);
 
     info!("Sending snapshot to server...");
     match transport.send_snapshot(&snapshot).await {
-        Ok(_) => info!("Snapshot sent successfully!"),
+        Ok(_) => info!("Snapshot sent successfully."),
         Err(e) => error!("Failed to send snapshot: {}", e),
     }
 
@@ -478,6 +458,5 @@ async fn run_test_pipeline<C: PlatformCollector>(mut collector: C, machine_id: &
 
     salvar_relatorio(&relatorio, machine_id);
 
-    println!("\n=== Log de Execução ===");
-    println!("{:#?}", relatorio.execution_log);
+    info!("Collection cycle finished. Steps: {}", relatorio.execution_log.steps.len());
 }
