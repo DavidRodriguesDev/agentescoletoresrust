@@ -49,8 +49,6 @@ Componente responsável por processar os snapshots brutos e transformá-los em r
 
 ## 🔄 Fluxo de Coleta e Snapshot
 
-O agente executa um pipeline fragmentado para evitar detecções heurísticas de EDR/Antivírus, inserindo delays entre as etapas:
-
 1. **Hardware:** CPU, RAM, Discos (via SMART), GPU, Bateria e Service Tag.
 2. **Security:** Status de Antivírus, Firewall, BitLocker, TPM e Secure Boot.
 3. **Access:** Grupos de Administradores locais, usuários com RDP habilitado e permissões críticas.
